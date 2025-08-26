@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
-import { MessageSquare, Robot, Send, Flag, Lightbulb } from '@phosphor-icons/react'
+import { MessageSquare, Robot, User, ArrowRight } from '@phosphor-icons/react'
+
+interface Message {
+  id: string
+  author: 'player1' | 'player2' | 'ai'
+  content: string
+  timestamp: number
+}
 
 interface SessionData {
   phase: string
@@ -14,32 +19,35 @@ interface SessionData {
   playerTwoSteelMan: string
   playerOneStatement: string
   playerTwoStatement: string
-  messages: Array<{
-    id: string
-    author: 'player1' | 'player2' | 'ai'
-    content: string
-    timestamp: number
-  }>
+  messages: Message[]
   proposedResolution: string
   finalResolution: string
   sessionStarted: number
 }
 
-interface Props {
+interface DiscussionPhaseProps {
   sessionData: SessionData
   currentPlayer: 'player1' | 'player2'
   updateSessionData: (updates: Partial<SessionData>) => void
 }
 
-export default function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Props) {
+export default function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: DiscussionPhaseProps) {
   const [currentMessage, setCurrentMessage] = useState('')
-  const [isAiProcessing, setIsAiProcessing] = useState(false)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const [isAIThinking, setIsAIThinking] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const handleSendMessage = async () => {
-    if (!currentMessage.trim() || isAiProcessing) return
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
-    const newMessage = {
+  useEffect(() => {
+    scrollToBottom()
+  }, [sessionData.messages])
+
+  const sendMessage = async () => {
+    if (!currentMessage.trim()) return
+
+    const newMessage: Message = {
       id: Date.now().toString(),
       author: currentPlayer,
       content: currentMessage.trim(),
@@ -50,247 +58,189 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
     updateSessionData({ messages: updatedMessages })
     setCurrentMessage('')
 
-    // Trigger AI analysis
-    setIsAiProcessing(true)
-    try {
-      const aiResponse = await getAIResponse(newMessage.content, sessionData)
-      
-      if (aiResponse) {
-        const aiMessage = {
-          id: (Date.now() + 1).toString(),
-          author: 'ai' as const,
-          content: aiResponse,
-          timestamp: Date.now()
-        }
-        
-        updateSessionData({ 
-          messages: [...updatedMessages, aiMessage] 
-        })
+    // Simulate AI response (in real app, this would call the Gemini API)
+    setIsAIThinking(true)
+    
+    setTimeout(() => {
+      const aiResponse = generateAIResponse(newMessage.content)
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        author: 'ai',
+        content: aiResponse,
+        timestamp: Date.now()
       }
-    } catch (error) {
-      console.error('AI response error:', error)
-    } finally {
-      setIsAiProcessing(false)
-    }
+      
+      updateSessionData({ 
+        messages: [...updatedMessages, aiMessage] 
+      })
+      setIsAIThinking(false)
+    }, 1500)
+  }
+
+  const generateAIResponse = (userMessage: string): string => {
+    const responses = [
+      "Interesting word choice there. Care to rephrase that without the blame-shifting?",
+      "I detect a whiff of gaslighting in that statement. Try again, but with facts this time.",
+      "That's a lovely deflection. How about addressing the actual point?",
+      "Ah, the classic 'you always/never' approach. Bold. Ineffective, but bold.",
+      "I see we're going with the 'attack the person, not the issue' strategy today.",
+      "That statement contradicts your locked position from 5 minutes ago. Goldfish memory or hoping I wouldn't notice?",
+      "How about we try that again, but as an 'I feel' statement? Revolutionary, I know.",
+      "Fascinating use of projection there. Want to own your part in this?",
+      "I'm sensing some stonewalling. Care to actually engage with what was said?",
+      "That's not a response, that's an accusation. Different things entirely."
+    ]
+    
+    return responses[Math.floor(Math.random() * responses.length)]
   }
 
   const proposeResolution = () => {
     updateSessionData({ phase: 'resolution' })
   }
 
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
-    }
-  }, [sessionData.messages])
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare size={24} />
             Moderated Discussion: Now You Can Argue (But Smartly)
           </CardTitle>
+          <p className="text-muted-foreground">
+            Chat away, but remember - our AI referee is watching and will call out your BS. 
+            Try to stay focused on the actual issue.
+          </p>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="prose prose-sm max-w-none text-muted-foreground">
-              <p>
-                The gloves are off. Type away, sling your carefully worded accusations. But here's 
-                the kicker: our AI referee is watching, armed with a PhD in your particular brand 
-                of bullshit and ready to call out manipulation tactics.
+        <CardContent className="space-y-6">
+          {/* Context Cards */}
+          <div className="grid gap-4 md:grid-cols-2 text-sm">
+            <div className="p-3 border rounded-lg bg-muted/30">
+              <h4 className="font-medium mb-1">The Issue</h4>
+              <p className="text-muted-foreground">{sessionData.agreedIssue}</p>
+            </div>
+            <div className="p-3 border rounded-lg bg-muted/30">
+              <h4 className="font-medium mb-1">Your Locked Statement</h4>
+              <p className="text-muted-foreground">
+                {currentPlayer === 'player1' ? sessionData.playerOneStatement : sessionData.playerTwoStatement}
               </p>
             </div>
+          </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <h4 className="font-medium text-sm mb-1">Player 1's Position</h4>
-                <p className="text-xs text-muted-foreground">{sessionData.playerOneStatement}</p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <h4 className="font-medium text-sm mb-1">Player 2's Position</h4>
-                <p className="text-xs text-muted-foreground">{sessionData.playerTwoStatement}</p>
+          {/* Messages */}
+          <div className="border rounded-lg">
+            <div className="h-96 overflow-y-auto p-4 space-y-3">
+              {sessionData.messages.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  <MessageSquare size={48} className="mx-auto mb-2 opacity-50" />
+                  <p>No messages yet. Time to break the ice... carefully.</p>
+                </div>
+              ) : (
+                sessionData.messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex items-start gap-3 ${
+                      message.author === currentPlayer ? 'flex-row-reverse' : ''
+                    }`}
+                  >
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                      message.author === 'ai' 
+                        ? 'bg-purple-100 text-purple-600'
+                        : message.author === currentPlayer
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-secondary-foreground'
+                    }`}>
+                      {message.author === 'ai' ? (
+                        <Robot size={16} />
+                      ) : (
+                        <User size={16} />
+                      )}
+                    </div>
+                    
+                    <div className={`flex-1 max-w-sm ${
+                      message.author === currentPlayer ? 'text-right' : ''
+                    }`}>
+                      <div className={`inline-block p-3 rounded-lg ${
+                        message.author === 'ai'
+                          ? 'bg-purple-50 border border-purple-200'
+                          : message.author === currentPlayer
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary'
+                      }`}>
+                        <p className="text-sm">{message.content}</p>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Badge variant="outline" className="text-xs">
+                          {message.author === 'ai' ? 'AI Referee' : 
+                           message.author === currentPlayer ? 'You' : 'Them'}
+                        </Badge>
+                        <span>{formatTimestamp(message.timestamp)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              
+              {isAIThinking && (
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                    <Robot size={16} />
+                  </div>
+                  <div className="flex-1 max-w-sm">
+                    <div className="inline-block p-3 rounded-lg bg-purple-50 border border-purple-200">
+                      <div className="flex items-center gap-2">
+                        <div className="animate-pulse text-sm">AI is analyzing your latest attempt at communication...</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Message Input */}
+            <div className="border-t p-4">
+              <div className="flex gap-2">
+                <Input
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  placeholder="Type your message... (the AI is watching)"
+                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                  disabled={isAIThinking}
+                />
+                <Button 
+                  onClick={sendMessage}
+                  disabled={!currentMessage.trim() || isAIThinking}
+                >
+                  Send
+                </Button>
               </div>
             </div>
           </div>
+
+          {/* Progress to Resolution */}
+          <div className="pt-4 border-t text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              Feeling like you've made some progress? Ready to propose a resolution?
+            </p>
+            <Button 
+              onClick={proposeResolution}
+              variant="default"
+              className="flex items-center gap-2"
+            >
+              <ArrowRight size={16} />
+              Propose a Resolution
+            </Button>
+          </div>
         </CardContent>
       </Card>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Discussion</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ScrollArea className="h-96 pr-4" ref={scrollAreaRef}>
-                <div className="space-y-4">
-                  {sessionData.messages.length === 0 && (
-                    <p className="text-muted-foreground text-center py-8">
-                      No messages yet. Someone brave enough to go first?
-                    </p>
-                  )}
-                  
-                  {sessionData.messages.map((message, index) => (
-                    <div key={message.id}>
-                      <div className={`flex ${message.author === currentPlayer ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                          className={`max-w-[80%] rounded-lg p-3 ${
-                            message.author === 'ai'
-                              ? 'bg-accent/10 border border-accent/20 mx-auto'
-                              : message.author === currentPlayer
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            {message.author === 'ai' ? (
-                              <Robot size={16} className="text-accent" />
-                            ) : (
-                              <MessageSquare size={16} />
-                            )}
-                            <span className="text-xs font-medium">
-                              {message.author === 'ai' 
-                                ? 'AI Referee' 
-                                : message.author === currentPlayer 
-                                ? 'You' 
-                                : `Player ${message.author === 'player1' ? '1' : '2'}`}
-                            </span>
-                            <span className="text-xs opacity-60">
-                              {new Date(message.timestamp).toLocaleTimeString()}
-                            </span>
-                          </div>
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                        </div>
-                      </div>
-                      
-                      {index < sessionData.messages.length - 1 && (
-                        <Separator className="my-4" />
-                      )}
-                    </div>
-                  ))}
-                  
-                  {isAiProcessing && (
-                    <div className="flex justify-center">
-                      <div className="bg-accent/10 border border-accent/20 rounded-lg p-3 max-w-[80%]">
-                        <div className="flex items-center gap-2">
-                          <Robot size={16} className="text-accent animate-pulse" />
-                          <span className="text-sm text-muted-foreground">AI is analyzing...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-              
-              <div className="space-y-2">
-                <Textarea
-                  value={currentMessage}
-                  onChange={(e) => setCurrentMessage(e.target.value)}
-                  placeholder="Express your thoughts, but remember - the AI is watching for BS..."
-                  className="min-h-20"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSendMessage()
-                    }
-                  }}
-                />
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-muted-foreground">
-                    Press Enter to send, Shift+Enter for new line
-                  </p>
-                  <Button 
-                    onClick={handleSendMessage}
-                    disabled={!currentMessage.trim() || isAiProcessing}
-                    size="sm"
-                  >
-                    <Send size={16} className="mr-1" />
-                    Send
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Lightbulb size={20} />
-                Actions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={proposeResolution} className="w-full">
-                Propose Resolution
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2">
-                Ready to end this? Propose a way forward.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-muted/50">
-            <CardContent className="pt-6">
-              <h3 className="font-medium mb-2 flex items-center gap-2">
-                <Robot size={18} />
-                AI Referee Notes:
-              </h3>
-              <div className="space-y-2 text-xs text-muted-foreground">
-                <p>• Watching for blame-shifting and deflection</p>
-                <p>• Detecting gaslighting attempts</p>
-                <p>• Flagging stonewalling behavior</p>
-                <p>• Identifying projection patterns</p>
-                <p>• Suggesting constructive rephrasing</p>
-                <p>• Calling out contradictions to locked statements</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   )
-}
-
-async function getAIResponse(message: string, sessionData: SessionData): Promise<string | null> {
-  try {
-    const prompt = spark.llmPrompt`
-You are an AI referee in MixitFixit, a conflict resolution app. You have a dry, witty personality and extensive knowledge of manipulation tactics. 
-
-Context:
-- Agreed Issue: ${sessionData.agreedIssue}
-- Player 1's Locked Statement: ${sessionData.playerOneStatement}
-- Player 2's Locked Statement: ${sessionData.playerTwoStatement}
-- Recent Message: "${message}"
-
-Your job is to analyze this message and provide feedback if it contains:
-1. Contradictions to their locked statement
-2. Manipulation tactics (gaslighting, blame-shifting, projection, stonewalling)
-3. Unproductive communication patterns
-4. Opportunities for constructive rephrasing
-
-If the message is constructive and doesn't have issues, don't respond. Only intervene when there's something worth addressing.
-
-When you do respond, be:
-- Dry and witty but not mean
-- Specific about what you noticed
-- Helpful with suggestions for improvement
-- Brief (2-3 sentences max)
-
-Examples of your tone:
-- "Interesting pivot from your locked statement. Memory like a goldfish, or strategic amnesia?"
-- "That's some impressive blame-shifting. Care to try addressing the actual point?"
-- "I see we're going with the classic 'make them defensive' strategy. Bold. Ineffective, but bold."
-
-Respond only if intervention is needed, otherwise return empty string.`
-
-    const response = await spark.llm(prompt, 'gpt-4o-mini')
-    return response.trim() || null
-  } catch (error) {
-    console.error('AI response error:', error)
-    return null
-  }
 }

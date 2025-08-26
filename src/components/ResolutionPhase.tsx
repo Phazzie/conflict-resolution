@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, XCircle, Edit3, Handshake, AlertCircle } from '@phosphor-icons/react'
+import { CheckCircle2, X, Edit3, Handshake } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -23,232 +23,173 @@ interface SessionData {
   sessionStarted: number
 }
 
-interface Props {
+interface ResolutionPhaseProps {
   sessionData: SessionData
   currentPlayer: 'player1' | 'player2'
   updateSessionData: (updates: Partial<SessionData>) => void
 }
 
-export default function ResolutionPhase({ sessionData, currentPlayer, updateSessionData }: Props) {
-  const [resolutionText, setResolutionText] = useState('')
-  const [modificationText, setModificationText] = useState('')
-  const [proposer, setProposer] = useState<'player1' | 'player2' | null>(null)
+export default function ResolutionPhase({ sessionData, currentPlayer, updateSessionData }: ResolutionPhaseProps) {
+  const [currentProposal, setCurrentProposal] = useState('')
+  const [modification, setModification] = useState('')
 
-  const handleProposeResolution = () => {
-    if (!resolutionText.trim()) return
-    
+  const proposeResolution = () => {
+    if (currentProposal.trim()) {
+      updateSessionData({ proposedResolution: currentProposal.trim() })
+      setCurrentProposal('')
+    }
+  }
+
+  const acceptResolution = () => {
     updateSessionData({ 
-      proposedResolution: resolutionText.trim()
-    })
-    setProposer(currentPlayer)
-    setResolutionText('')
-  }
-
-  const handleAcceptResolution = () => {
-    updateSessionData({
       finalResolution: sessionData.proposedResolution,
-      phase: 'summary'
+      phase: 'summary' 
     })
   }
 
-  const handleRejectResolution = () => {
+  const modifyResolution = () => {
+    if (modification.trim()) {
+      updateSessionData({ proposedResolution: modification.trim() })
+      setModification('')
+    }
+  }
+
+  const rejectResolution = () => {
     updateSessionData({ proposedResolution: '' })
-    setProposer(null)
   }
 
-  const handleModifyResolution = () => {
-    if (!modificationText.trim()) return
-    
-    updateSessionData({
-      proposedResolution: modificationText.trim()
-    })
-    setModificationText('')
-  }
-
-  const backToDiscussion = () => {
-    updateSessionData({ phase: 'discussion' })
-  }
-
-  const isMyProposal = proposer === currentPlayer
-  const isReviewingProposal = sessionData.proposedResolution && !isMyProposal
-  const canPropose = !sessionData.proposedResolution
+  const hasProposedResolution = sessionData.proposedResolution.length > 0
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Handshake size={24} />
-            Resolution Phase: Can We Stop This Ride?
+            Resolution Phase: Can We Actually Agree to Stop?
           </CardTitle>
+          <p className="text-muted-foreground">
+            Time to see if all that "discussion" actually led somewhere. Propose a resolution that you can both live with.
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {/* Context */}
           <div className="space-y-4">
-            <div className="prose prose-sm max-w-none text-muted-foreground">
-              <p>
-                If, against all odds, a resolution appears on the horizon, one of you can propose it. 
-                The other can accept, try to water it down with "modifications" (which need re-approval), 
-                or just dig their heels in. Nothing's final until both parties click "agree."
-              </p>
+            <div className="p-4 border-l-4 border-primary bg-muted/50">
+              <h3 className="font-medium mb-2">The Issue We've Been Fighting About:</h3>
+              <p className="text-foreground">{sessionData.agreedIssue}</p>
             </div>
 
-            <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-              <AlertCircle size={20} className="text-primary" />
-              <div>
-                <p className="text-sm font-medium">Remember the Issue:</p>
-                <p className="text-sm text-muted-foreground">{sessionData.agreedIssue}</p>
+            <div className="grid gap-4 md:grid-cols-2 text-sm">
+              <div className="p-3 border rounded-lg bg-muted/30">
+                <h4 className="font-medium mb-1">Player 1's Locked Statement</h4>
+                <p className="text-muted-foreground">{sessionData.playerOneStatement}</p>
+              </div>
+              <div className="p-3 border rounded-lg bg-muted/30">
+                <h4 className="font-medium mb-1">Player 2's Locked Statement</h4>
+                <p className="text-muted-foreground">{sessionData.playerTwoStatement}</p>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {sessionData.finalResolution ? (
-        <Card className="border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-800">
-              <CheckCircle2 size={24} />
-              Final Resolution - LOCKED
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="p-4 bg-white border-l-4 border-l-green-500 rounded-lg">
-              <p className="text-foreground whitespace-pre-wrap">{sessionData.finalResolution}</p>
-            </div>
-            <p className="text-sm text-green-700 mt-3">
-              Congratulations, you've achieved the impossible: mutual agreement. 
-              This resolution is now locked and will be included in your battle report.
-            </p>
-          </CardContent>
-        </Card>
-      ) : sessionData.proposedResolution ? (
-        <Card className="border-accent/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Edit3 size={24} />
-              Proposed Resolution
-              {proposer && (
-                <Badge variant="outline">
-                  by {proposer === currentPlayer ? 'You' : `Player ${proposer === 'player1' ? '1' : '2'}`}
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-4 bg-accent/5 border border-accent/20 rounded-lg">
-                <p className="text-foreground whitespace-pre-wrap">{sessionData.proposedResolution}</p>
-              </div>
-
-              {isReviewingProposal && (
-                <div className="space-y-4">
-                  <div className="flex gap-2 flex-wrap">
-                    <Button onClick={handleAcceptResolution}>
-                      <CheckCircle2 size={16} className="mr-1" />
-                      Accept Resolution
-                    </Button>
-                    <Button onClick={handleRejectResolution} variant="destructive">
-                      <XCircle size={16} className="mr-1" />
-                      Reject & Keep Fighting
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Or propose modifications:
-                    </label>
-                    <Textarea
-                      value={modificationText}
-                      onChange={(e) => setModificationText(e.target.value)}
-                      placeholder="Suggest changes to this resolution..."
-                      className="min-h-20"
-                    />
-                    <Button 
-                      onClick={handleModifyResolution}
-                      variant="outline" 
-                      disabled={!modificationText.trim()}
-                      className="w-full"
-                    >
-                      Propose Modified Version
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {isMyProposal && (
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <p className="text-sm text-muted-foreground">
-                    Waiting for the other person to review your proposal...
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Propose a Resolution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Your Proposed Solution ({currentPlayer === 'player1' ? 'Player 1' : 'Player 2'})
-                </label>
-                <Textarea
-                  value={resolutionText}
-                  onChange={(e) => setResolutionText(e.target.value)}
-                  placeholder="Describe a concrete solution or agreement that addresses this issue. Be specific about what each person will do differently, boundaries that need to be set, or changes that need to happen."
-                  className="min-h-32"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Be specific and actionable. Vague promises like "we'll communicate better" aren't enough.
+            {sessionData.messages.length > 0 && (
+              <div className="p-3 border rounded-lg bg-muted/30">
+                <h4 className="font-medium mb-1">Discussion Summary</h4>
+                <p className="text-xs text-muted-foreground">
+                  {sessionData.messages.length} messages exchanged
+                  {sessionData.messages.filter(m => m.author === 'ai').length > 0 && 
+                    ` (including ${sessionData.messages.filter(m => m.author === 'ai').length} AI interventions)`}
                 </p>
               </div>
-              
+            )}
+          </div>
+
+          {/* Resolution Proposal/Negotiation */}
+          {!hasProposedResolution ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Propose a Resolution
+                </label>
+                <Textarea
+                  value={currentProposal}
+                  onChange={(e) => setCurrentProposal(e.target.value)}
+                  placeholder="What specific actions, agreements, or changes would resolve this issue? Be concrete and actionable..."
+                  className="min-h-32"
+                />
+              </div>
               <Button 
-                onClick={handleProposeResolution}
-                disabled={!resolutionText.trim()}
+                onClick={proposeResolution} 
+                disabled={!currentProposal.trim()}
                 className="w-full"
               >
+                <Edit3 size={16} className="mr-2" />
                 Propose This Resolution
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 border-l-4 border-green-500 bg-green-50/50">
+                <h3 className="font-medium mb-2 text-green-800">Proposed Resolution:</h3>
+                <p className="text-foreground">{sessionData.proposedResolution}</p>
+              </div>
 
-      <div className="flex gap-4">
-        <Button 
-          onClick={backToDiscussion} 
-          variant="outline" 
-          className="flex-1"
-        >
-          Back to Discussion
-        </Button>
-        
-        {!sessionData.proposedResolution && (
-          <Button 
-            onClick={() => updateSessionData({ phase: 'summary' })}
-            variant="destructive"
-            className="flex-1"
-          >
-            End Session (No Resolution)
-          </Button>
-        )}
-      </div>
+              <div className="flex items-center gap-2 mb-4">
+                <Badge variant="outline">Waiting for Agreement</Badge>
+                <span className="text-sm text-muted-foreground">
+                  Both parties need to agree to make this resolution final
+                </span>
+              </div>
 
-      <Card className="bg-muted/50">
-        <CardContent className="pt-6">
-          <h3 className="font-medium mb-2">Resolution Guidelines:</h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>• Be specific about actions, not just feelings or intentions</p>
-            <p>• Include what each person will do differently</p>
-            <p>• Set clear boundaries or expectations if relevant</p>
-            <p>• Make it measurable - how will you know if it's working?</p>
-            <p>• Address the root cause, not just the symptoms</p>
-            <p>• Both parties must explicitly agree for it to be final</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button 
+                  onClick={acceptResolution}
+                  variant="default"
+                  className="flex items-center gap-2"
+                >
+                  <CheckCircle2 size={16} />
+                  Accept Resolution
+                </Button>
+                
+                <div className="space-y-2">
+                  <Textarea
+                    value={modification}
+                    onChange={(e) => setModification(e.target.value)}
+                    placeholder="Suggest modifications..."
+                    className="min-h-20"
+                  />
+                  <Button 
+                    onClick={modifyResolution}
+                    variant="secondary"
+                    disabled={!modification.trim()}
+                    className="w-full flex items-center gap-2"
+                  >
+                    <Edit3 size={16} />
+                    Modify & Re-propose
+                  </Button>
+                </div>
+                
+                <Button 
+                  onClick={rejectResolution}
+                  variant="destructive"
+                  className="flex items-center gap-2"
+                >
+                  <X size={16} />
+                  Reject & Continue Fighting
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Helpful Tips */}
+          <div className="pt-4 border-t">
+            <h4 className="text-sm font-medium mb-2">Tips for a Good Resolution:</h4>
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+              <li>Be specific about actions, not vague about feelings</li>
+              <li>Include what each person will do differently</li>
+              <li>Set measurable outcomes or check-ins</li>
+              <li>Address the core issue, not just symptoms</li>
+              <li>Make it realistic and achievable</li>
+            </ul>
           </div>
         </CardContent>
       </Card>

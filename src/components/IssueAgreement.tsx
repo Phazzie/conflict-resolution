@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { MessageSquare, CheckCircle2, XCircle, Edit3 } from '@phosphor-icons/react'
+import { MessageSquare, CheckCircle2, X } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -23,165 +23,128 @@ interface SessionData {
   sessionStarted: number
 }
 
-interface Props {
+interface IssueAgreementProps {
   sessionData: SessionData
   currentPlayer: 'player1' | 'player2'
   updateSessionData: (updates: Partial<SessionData>) => void
 }
 
-export default function IssueAgreement({ sessionData, currentPlayer, updateSessionData }: Props) {
+export default function IssueAgreement({ sessionData, currentPlayer, updateSessionData }: IssueAgreementProps) {
   const [proposedIssue, setProposedIssue] = useState('')
-  const [modificationText, setModificationText] = useState('')
-  const [pendingProposal, setPendingProposal] = useState('')
-  const [status, setStatus] = useState<'idle' | 'proposed' | 'pending-approval'>('idle')
+  const [modification, setModification] = useState('')
 
-  const handleProposeIssue = () => {
-    if (!proposedIssue.trim()) return
-    
-    setPendingProposal(proposedIssue.trim())
-    setStatus('pending-approval')
+  const proposeIssue = () => {
+    if (proposedIssue.trim()) {
+      updateSessionData({ agreedIssue: proposedIssue.trim() })
+    }
+  }
+
+  const acceptIssue = () => {
+    updateSessionData({ phase: 'steel-manning' })
+  }
+
+  const modifyIssue = () => {
+    if (modification.trim()) {
+      updateSessionData({ agreedIssue: modification.trim() })
+      setModification('')
+    }
+  }
+
+  const rejectIssue = () => {
+    updateSessionData({ agreedIssue: '' })
     setProposedIssue('')
   }
 
-  const handleAcceptIssue = () => {
-    updateSessionData({
-      agreedIssue: pendingProposal,
-      phase: 'steel-manning'
-    })
-  }
-
-  const handleRejectIssue = () => {
-    setPendingProposal('')
-    setStatus('idle')
-  }
-
-  const handleModifyIssue = () => {
-    if (!modificationText.trim()) return
-    
-    setPendingProposal(modificationText.trim())
-    setModificationText('')
-  }
-
-  const isWaitingForOther = status === 'pending-approval' && currentPlayer === 'player1'
-  const isReviewingProposal = status === 'pending-approval' && currentPlayer === 'player2'
-  const canPropose = status === 'idle'
+  const hasProposedIssue = sessionData.agreedIssue.length > 0
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare size={24} />
-            Issue Agreement: What Are We Actually Fighting About?
+            Issue Agreement Phase
           </CardTitle>
+          <p className="text-muted-foreground">
+            First, let's agree on what exactly you're fighting about. Revolutionary concept, I know.
+          </p>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <p className="text-muted-foreground">
-              Before we proceed to the digital Thunderdome, let's establish what specific issue 
-              is causing this delightful dysfunction. No mudslinging until both parties agree 
-              on the exact wording of your mutual torment.
-            </p>
-            
-            {sessionData.agreedIssue && (
-              <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 size={20} className="text-primary" />
-                  <span className="font-medium text-primary">Agreed Issue</span>
-                </div>
+        <CardContent className="space-y-6">
+          {!hasProposedIssue ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  What's the issue you want to address?
+                </label>
+                <Textarea
+                  value={proposedIssue}
+                  onChange={(e) => setProposedIssue(e.target.value)}
+                  placeholder="Be specific. 'You're annoying' doesn't count as constructive..."
+                  className="min-h-24"
+                />
+              </div>
+              <Button 
+                onClick={proposeIssue} 
+                disabled={!proposedIssue.trim()}
+                className="w-full"
+              >
+                Propose This Issue
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 border-l-4 border-primary bg-muted/50">
+                <h3 className="font-medium mb-2">Proposed Issue:</h3>
                 <p className="text-foreground">{sessionData.agreedIssue}</p>
               </div>
-            )}
 
-            {pendingProposal && !sessionData.agreedIssue && (
-              <div className="p-4 bg-accent/10 border border-accent/20 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Edit3 size={20} className="text-accent" />
-                  <span className="font-medium text-accent">Pending Proposal</span>
-                </div>
-                <p className="text-foreground mb-4">{pendingProposal}</p>
-                
-                {isReviewingProposal && (
-                  <div className="flex gap-2 flex-wrap">
-                    <Button onClick={handleAcceptIssue} size="sm">
-                      <CheckCircle2 size={16} className="mr-1" />
-                      Accept
-                    </Button>
-                    <Button onClick={handleRejectIssue} variant="destructive" size="sm">
-                      <XCircle size={16} className="mr-1" />
-                      Reject
-                    </Button>
-                    <div className="flex items-center gap-2 flex-1 min-w-64">
-                      <Textarea
-                        value={modificationText}
-                        onChange={(e) => setModificationText(e.target.value)}
-                        placeholder="Suggest modification..."
-                        className="min-h-0 h-9 text-sm"
-                      />
-                      <Button 
-                        onClick={handleModifyIssue}
-                        variant="outline" 
-                        size="sm"
-                        disabled={!modificationText.trim()}
-                      >
-                        Modify
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                
-                {isWaitingForOther && (
-                  <Badge variant="secondary">
-                    Waiting for the other person to respond...
-                  </Badge>
-                )}
+              <div className="flex items-center gap-2 mb-4">
+                <Badge variant="outline">Waiting for Agreement</Badge>
+                <span className="text-sm text-muted-foreground">
+                  Both players need to agree before proceeding
+                </span>
               </div>
-            )}
 
-            {canPropose && !sessionData.agreedIssue && (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Propose the Issue ({currentPlayer === 'player1' ? 'Player 1' : 'Player 2'})
-                  </label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Button 
+                  onClick={acceptIssue}
+                  variant="default"
+                  className="flex items-center gap-2"
+                >
+                  <CheckCircle2 size={16} />
+                  Accept Issue
+                </Button>
+                
+                <div className="space-y-2">
                   <Textarea
-                    value={proposedIssue}
-                    onChange={(e) => setProposedIssue(e.target.value)}
-                    placeholder="e.g., 'You treat your phone like your primary life partner' or 'You never listen when I'm trying to explain my feelings'"
-                    className="min-h-24"
+                    value={modification}
+                    onChange={(e) => setModification(e.target.value)}
+                    placeholder="Suggest a modification..."
+                    className="min-h-16"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Be specific. Vague complaints like "you're annoying" won't cut it here.
-                  </p>
+                  <Button 
+                    onClick={modifyIssue}
+                    variant="secondary"
+                    disabled={!modification.trim()}
+                    className="w-full"
+                  >
+                    Modify & Re-propose
+                  </Button>
                 </div>
                 
                 <Button 
-                  onClick={handleProposeIssue}
-                  disabled={!proposedIssue.trim()}
-                  className="w-full"
+                  onClick={rejectIssue}
+                  variant="destructive"
+                  className="flex items-center gap-2"
                 >
-                  Propose This Issue
+                  <X size={16} />
+                  Reject Issue
                 </Button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {!sessionData.agreedIssue && (
-        <Card className="bg-muted/50">
-          <CardContent className="pt-6">
-            <h3 className="font-medium mb-2">How This Works:</h3>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>1. One person proposes the specific issue you're dealing with</p>
-              <p>2. The other person can Accept, Reject, or Modify the proposed wording</p>
-              <p>3. If modified, it goes back to the original proposer for approval</p>
-              <p>4. This continues until both parties agree on the exact same wording</p>
-              <p>5. Only then do we proceed to the next phase of mutual understanding</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

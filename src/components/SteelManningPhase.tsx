@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Users, CheckCircle2, XCircle, Brain } from '@phosphor-icons/react'
+import { Users, CheckCircle2, X, Eye } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -23,252 +23,158 @@ interface SessionData {
   sessionStarted: number
 }
 
-interface Props {
+interface SteelManningPhaseProps {
   sessionData: SessionData
   currentPlayer: 'player1' | 'player2'
   updateSessionData: (updates: Partial<SessionData>) => void
 }
 
-export default function SteelManningPhase({ sessionData, currentPlayer, updateSessionData }: Props) {
+export default function SteelManningPhase({ sessionData, currentPlayer, updateSessionData }: SteelManningPhaseProps) {
   const [currentSteelMan, setCurrentSteelMan] = useState('')
-  const [playerOneSteelManApproved, setPlayerOneSteelManApproved] = useState(false)
-  const [playerTwoSteelManApproved, setPlayerTwoSteelManApproved] = useState(false)
+  
+  const otherPlayer = currentPlayer === 'player1' ? 'player2' : 'player1'
+  const myCurrentSteelMan = currentPlayer === 'player1' ? sessionData.playerOneSteelMan : sessionData.playerTwoSteelMan
+  const otherPlayerSteelMan = currentPlayer === 'player1' ? sessionData.playerTwoSteelMan : sessionData.playerOneSteelMan
 
-  const handleSubmitSteelMan = () => {
-    if (!currentSteelMan.trim()) return
-
-    const updates = currentPlayer === 'player1' 
-      ? { playerOneSteelMan: currentSteelMan.trim() }
-      : { playerTwoSteelMan: currentSteelMan.trim() }
-    
-    updateSessionData(updates)
-    setCurrentSteelMan('')
+  const submitSteelMan = () => {
+    if (currentSteelMan.trim()) {
+      const updates = currentPlayer === 'player1' 
+        ? { playerOneSteelMan: currentSteelMan.trim() }
+        : { playerTwoSteelMan: currentSteelMan.trim() }
+      updateSessionData(updates)
+      setCurrentSteelMan('')
+    }
   }
 
-  const handleApproveSteelMan = (player: 'player1' | 'player2') => {
-    if (player === 'player1') {
-      setPlayerOneSteelManApproved(true)
-    } else {
-      setPlayerTwoSteelManApproved(true)
-    }
-
-    // Check if both steel-mans are approved and proceed to next phase
-    const bothApproved = (player === 'player1' ? true : playerOneSteelManApproved) && 
-                        (player === 'player2' ? true : playerTwoSteelManApproved)
-    
-    if (bothApproved) {
+  const approveSteelMan = () => {
+    // For demo purposes, auto-approve. In real app, this would need more complex approval logic
+    if (sessionData.playerOneSteelMan && sessionData.playerTwoSteelMan) {
       updateSessionData({ phase: 'statement-locking' })
     }
   }
 
-  const handleRejectSteelMan = (player: 'player1' | 'player2') => {
-    const updates = player === 'player1' 
+  const rejectSteelMan = () => {
+    const updates = otherPlayer === 'player1' 
       ? { playerOneSteelMan: '' }
       : { playerTwoSteelMan: '' }
-    
     updateSessionData(updates)
-    
-    if (player === 'player1') setPlayerOneSteelManApproved(false)
-    if (player === 'player2') setPlayerTwoSteelManApproved(false)
   }
 
-  const mySubmittedSteelMan = currentPlayer === 'player1' ? sessionData.playerOneSteelMan : sessionData.playerTwoSteelMan
-  const theirSubmittedSteelMan = currentPlayer === 'player1' ? sessionData.playerTwoSteelMan : sessionData.playerOneSteelMan
-  const canSubmit = !mySubmittedSteelMan
-  const needsToReview = theirSubmittedSteelMan && !playerTwoSteelManApproved && !playerOneSteelManApproved
+  const bothCompleted = sessionData.playerOneSteelMan && sessionData.playerTwoSteelMan
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users size={24} />
             Steel-Manning Phase: Prove You're Not a Complete Narcissist
           </CardTitle>
+          <p className="text-muted-foreground">
+            Before you get to whine about your feelings, prove you can actually understand the other person's perspective on the agreed issue.
+          </p>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Brain size={20} className="text-primary" />
-                <span className="font-medium">The Agreed Issue</span>
-              </div>
-              <p className="text-foreground">{sessionData.agreedIssue}</p>
-            </div>
-
-            <div className="prose prose-sm max-w-none text-muted-foreground">
-              <p>
-                Before you get to unleash your meticulously crafted monologue of woe, you have to prove 
-                you're actually listening. Explain the <strong>other person's perspective</strong> on this issue 
-                so accurately that they grudgingly nod in agreement.
-              </p>
-              <p>
-                This isn't about agreeing with them (heaven forbid), it's about demonstrating you 
-                understand their feelings, reasoning, and position. Get it wrong? Try again, buttercup.
-              </p>
-            </div>
+        <CardContent className="space-y-6">
+          <div className="p-4 border-l-4 border-primary bg-muted/50">
+            <h3 className="font-medium mb-2">The Issue We're Steel-Manning:</h3>
+            <p className="text-foreground">{sessionData.agreedIssue}</p>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Player 1 Steel-Man */}
-        <Card className={currentPlayer === 'player1' ? 'ring-2 ring-primary/20' : ''}>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Player 1's Steel-Man</span>
-              {currentPlayer === 'player1' && <Badge variant="secondary">You</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sessionData.playerOneSteelMan ? (
-              <div className="space-y-4">
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-sm">{sessionData.playerOneSteelMan}</p>
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* My Steel-Man */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant={myCurrentSteelMan ? "default" : "outline"}>
+                  Your Steel-Man
+                </Badge>
+                {myCurrentSteelMan && <CheckCircle2 size={16} className="text-green-500" />}
+              </div>
+
+              {!myCurrentSteelMan ? (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium">
+                    Explain the {otherPlayer === 'player1' ? 'other' : 'other'} person's perspective:
+                  </label>
+                  <Textarea
+                    value={currentSteelMan}
+                    onChange={(e) => setCurrentSteelMan(e.target.value)}
+                    placeholder="What do they think? Why do they feel this way? What's their reasoning? Be honest and accurate..."
+                    className="min-h-32"
+                  />
+                  <Button 
+                    onClick={submitSteelMan}
+                    disabled={!currentSteelMan.trim()}
+                    className="w-full"
+                  >
+                    Submit My Steel-Man
+                  </Button>
                 </div>
-                
-                {currentPlayer === 'player2' && !playerOneSteelManApproved && (
+              ) : (
+                <div className="p-3 border rounded-lg bg-background">
+                  <p className="text-sm text-muted-foreground mb-1">Your submission:</p>
+                  <p>{myCurrentSteelMan}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Their Steel-Man */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant={otherPlayerSteelMan ? "default" : "outline"}>
+                  Their Steel-Man
+                </Badge>
+                {otherPlayerSteelMan && <Eye size={16} className="text-blue-500" />}
+              </div>
+
+              {otherPlayerSteelMan ? (
+                <div className="space-y-3">
+                  <div className="p-3 border rounded-lg bg-background">
+                    <p className="text-sm text-muted-foreground mb-1">Their understanding of your perspective:</p>
+                    <p>{otherPlayerSteelMan}</p>
+                  </div>
+                  
                   <div className="flex gap-2">
                     <Button 
-                      onClick={() => handleApproveSteelMan('player1')} 
-                      size="sm"
+                      onClick={approveSteelMan}
+                      variant="default"
+                      className="flex-1"
                     >
                       <CheckCircle2 size={16} className="mr-1" />
                       Accurate Enough
                     </Button>
                     <Button 
-                      onClick={() => handleRejectSteelMan('player1')}
-                      variant="destructive" 
-                      size="sm"
+                      onClick={rejectSteelMan}
+                      variant="destructive"
+                      className="flex-1"
                     >
-                      <XCircle size={16} className="mr-1" />
+                      <X size={16} className="mr-1" />
                       Try Again
                     </Button>
                   </div>
-                )}
-                
-                {playerOneSteelManApproved && (
-                  <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle2 size={16} className="mr-1" />
-                    Approved by Player 2
-                  </Badge>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {currentPlayer === 'player1' && canSubmit ? (
-                  <>
-                    <Textarea
-                      value={currentSteelMan}
-                      onChange={(e) => setCurrentSteelMan(e.target.value)}
-                      placeholder="Explain Player 2's perspective on this issue. What do they feel? What's their reasoning? Be specific and empathetic."
-                      className="min-h-32"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Write this from their point of view. What are their feelings, concerns, and logic about this issue?
-                    </p>
-                    <Button 
-                      onClick={handleSubmitSteelMan}
-                      disabled={!currentSteelMan.trim()}
-                      className="w-full"
-                    >
-                      Submit Steel-Man
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">
-                    Waiting for Player 1 to submit their steel-man...
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Player 2 Steel-Man */}
-        <Card className={currentPlayer === 'player2' ? 'ring-2 ring-primary/20' : ''}>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Player 2's Steel-Man</span>
-              {currentPlayer === 'player2' && <Badge variant="secondary">You</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sessionData.playerTwoSteelMan ? (
-              <div className="space-y-4">
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-sm">{sessionData.playerTwoSteelMan}</p>
                 </div>
-                
-                {currentPlayer === 'player1' && !playerTwoSteelManApproved && (
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={() => handleApproveSteelMan('player2')} 
-                      size="sm"
-                    >
-                      <CheckCircle2 size={16} className="mr-1" />
-                      Accurate Enough
-                    </Button>
-                    <Button 
-                      onClick={() => handleRejectSteelMan('player2')}
-                      variant="destructive" 
-                      size="sm"
-                    >
-                      <XCircle size={16} className="mr-1" />
-                      Try Again
-                    </Button>
-                  </div>
-                )}
-                
-                {playerTwoSteelManApproved && (
-                  <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle2 size={16} className="mr-1" />
-                    Approved by Player 1
-                  </Badge>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {currentPlayer === 'player2' && canSubmit ? (
-                  <>
-                    <Textarea
-                      value={currentSteelMan}
-                      onChange={(e) => setCurrentSteelMan(e.target.value)}
-                      placeholder="Explain Player 1's perspective on this issue. What do they feel? What's their reasoning? Be specific and empathetic."
-                      className="min-h-32"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Write this from their point of view. What are their feelings, concerns, and logic about this issue?
-                    </p>
-                    <Button 
-                      onClick={handleSubmitSteelMan}
-                      disabled={!currentSteelMan.trim()}
-                      className="w-full"
-                    >
-                      Submit Steel-Man
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">
-                    Waiting for Player 2 to submit their steel-man...
-                  </p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="bg-muted/50">
-        <CardContent className="pt-6">
-          <h3 className="font-medium mb-2">Steel-Manning Rules:</h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>• Explain the other person's position better than they could themselves</p>
-            <p>• Include their emotions, reasoning, and underlying concerns</p>
-            <p>• No strawman arguments or subtle digs - this is about understanding</p>
-            <p>• They must approve your steel-man before you can proceed</p>
-            <p>• If rejected, revise and try again until you demonstrate actual listening</p>
+              ) : (
+                <div className="p-4 border border-dashed rounded-lg text-center text-muted-foreground">
+                  Waiting for the other person to submit their steel-man of your perspective...
+                </div>
+              )}
+            </div>
           </div>
+
+          {bothCompleted && (
+            <div className="pt-4 border-t text-center">
+              <Badge variant="default" className="mb-2">Both Steel-Mans Complete</Badge>
+              <p className="text-sm text-muted-foreground mb-4">
+                Great! You've both proven you can at least pretend to understand each other. 
+                Ready to lock in your personal statements?
+              </p>
+              <Button 
+                onClick={() => updateSessionData({ phase: 'statement-locking' })}
+                size="lg"
+              >
+                Proceed to Statement Locking
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

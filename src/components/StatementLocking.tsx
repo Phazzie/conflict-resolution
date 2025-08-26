@@ -3,8 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { Lock, Shield, AlertTriangle } from '@phosphor-icons/react'
+import { Lock, CheckCircle2, AlertTriangle } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -24,257 +23,183 @@ interface SessionData {
   sessionStarted: number
 }
 
-interface Props {
+interface StatementLockingProps {
   sessionData: SessionData
   currentPlayer: 'player1' | 'player2'
   updateSessionData: (updates: Partial<SessionData>) => void
 }
 
-export default function StatementLocking({ sessionData, currentPlayer, updateSessionData }: Props) {
+export default function StatementLocking({ sessionData, currentPlayer, updateSessionData }: StatementLockingProps) {
   const [currentStatement, setCurrentStatement] = useState('')
+  const [showLockConfirm, setShowLockConfirm] = useState(false)
+  
+  const myCurrentStatement = currentPlayer === 'player1' ? sessionData.playerOneStatement : sessionData.playerTwoStatement
+  const otherPlayerStatement = currentPlayer === 'player1' ? sessionData.playerTwoStatement : sessionData.playerOneStatement
 
-  const handleLockStatement = () => {
-    const updates = currentPlayer === 'player1' 
-      ? { playerOneStatement: currentStatement.trim() }
-      : { playerTwoStatement: currentStatement.trim() }
-    
-    updateSessionData(updates)
-    setCurrentStatement('')
-
-    // Check if both statements are locked and proceed to discussion phase
-    const bothLocked = (currentPlayer === 'player1' ? true : !!sessionData.playerOneStatement) && 
-                      (currentPlayer === 'player2' ? true : !!sessionData.playerTwoStatement)
-    
-    if (bothLocked) {
-      updateSessionData({ phase: 'discussion' })
+  const lockStatement = () => {
+    if (currentStatement.trim()) {
+      const updates = currentPlayer === 'player1' 
+        ? { playerOneStatement: currentStatement.trim() }
+        : { playerTwoStatement: currentStatement.trim() }
+      updateSessionData(updates)
+      setCurrentStatement('')
+      setShowLockConfirm(false)
     }
   }
 
-  const myStatement = currentPlayer === 'player1' ? sessionData.playerOneStatement : sessionData.playerTwoStatement
-  const theirStatement = currentPlayer === 'player1' ? sessionData.playerTwoStatement : sessionData.playerOneStatement
-  const canLock = !myStatement && currentStatement.trim()
+  const bothStatementsLocked = sessionData.playerOneStatement && sessionData.playerTwoStatement
+
+  const proceedToDiscussion = () => {
+    updateSessionData({ phase: 'discussion' })
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lock size={24} />
             Statement Locking: Carve Your Truth in Digital Stone
           </CardTitle>
+          <p className="text-muted-foreground">
+            Time to commit to your perspective. Once locked, there's no "I didn't mean it like that" or "you're twisting my words." This is your immutable truth.
+          </p>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Shield size={20} className="text-primary" />
-                <span className="font-medium">The Agreed Issue</span>
-              </div>
-              <p className="text-foreground">{sessionData.agreedIssue}</p>
-            </div>
-
-            <div className="prose prose-sm max-w-none text-muted-foreground">
-              <p>
-                Now that you've both demonstrated basic cognitive empathy, it's time for 
-                <strong> Statement Locking</strong>. Write your personal, unadulterated truth about 
-                this issue. Hit submit, and it's locked harder than Fort Knox.
-              </p>
-              <p className="flex items-center gap-2 text-orange-600 font-medium">
-                <AlertTriangle size={16} />
-                No edits. No "I didn't mean it like that." No rewriting history.
-              </p>
+        <CardContent className="space-y-6">
+          <div className="p-4 border-l-4 border-primary bg-muted/50">
+            <h3 className="font-medium mb-2">The Issue:</h3>
+            <p className="text-foreground mb-3">{sessionData.agreedIssue}</p>
+            
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p><strong>Your Steel-Man:</strong> {currentPlayer === 'player1' ? sessionData.playerOneSteelMan : sessionData.playerTwoSteelMan}</p>
+              <p><strong>Their Steel-Man:</strong> {currentPlayer === 'player1' ? sessionData.playerTwoSteelMan : sessionData.playerOneSteelMan}</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Player 1 Statement */}
-        <Card className={currentPlayer === 'player1' ? 'ring-2 ring-primary/20' : ''}>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Player 1's Statement</span>
-              {currentPlayer === 'player1' && <Badge variant="secondary">You</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sessionData.playerOneStatement ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-muted border-l-4 border-l-primary rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lock size={16} className="text-primary" />
-                    <span className="text-xs font-medium text-primary uppercase tracking-wide">
-                      LOCKED STATEMENT
-                    </span>
-                  </div>
-                  <p className="text-foreground whitespace-pre-wrap">{sessionData.playerOneStatement}</p>
-                </div>
-                <Badge className="bg-green-100 text-green-800">
-                  <Shield size={16} className="mr-1" />
-                  Statement Locked
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* My Statement */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant={myCurrentStatement ? "default" : "outline"}>
+                  Your Statement
                 </Badge>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {currentPlayer === 'player1' ? (
-                  <>
-                    <Textarea
-                      value={currentStatement}
-                      onChange={(e) => setCurrentStatement(e.target.value)}
-                      placeholder="Write your definitive statement about this issue. This is your personal truth - your feelings, your perspective, your reasoning. Choose your words carefully because once locked, this becomes your official position."
-                      className="min-h-40"
-                    />
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p>• Be honest about your feelings and perspective</p>
-                      <p>• Include your reasoning and what matters to you</p>
-                      <p>• This will be your permanent position for this discussion</p>
-                    </div>
-                    
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button 
-                          disabled={!canLock}
-                          className="w-full"
-                          variant={canLock ? "default" : "secondary"}
-                        >
-                          <Lock size={16} className="mr-2" />
-                          Lock Statement Forever
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="flex items-center gap-2">
-                            <AlertTriangle size={20} className="text-orange-500" />
-                            Are You Absolutely Sure?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Once you lock this statement, it becomes your immutable truth for this session. 
-                            No edits, no takebacks, no "I was emotional" excuses. This will be the 
-                            bedrock of your position throughout the entire discussion.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <div className="p-3 bg-muted rounded-lg my-4">
-                          <p className="text-sm text-foreground whitespace-pre-wrap">{currentStatement}</p>
-                        </div>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Wait, Let Me Revise</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleLockStatement}>
-                            Yes, Lock It In
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">
-                    Waiting for Player 1 to lock their statement...
-                  </p>
+                {myCurrentStatement && (
+                  <div className="flex items-center gap-1">
+                    <Lock size={16} className="text-green-500" />
+                    <span className="text-xs text-green-600 font-medium">LOCKED</span>
+                  </div>
                 )}
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Player 2 Statement */}
-        <Card className={currentPlayer === 'player2' ? 'ring-2 ring-primary/20' : ''}>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Player 2's Statement</span>
-              {currentPlayer === 'player2' && <Badge variant="secondary">You</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sessionData.playerTwoStatement ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-muted border-l-4 border-l-primary rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lock size={16} className="text-primary" />
-                    <span className="text-xs font-medium text-primary uppercase tracking-wide">
-                      LOCKED STATEMENT
-                    </span>
-                  </div>
-                  <p className="text-foreground whitespace-pre-wrap">{sessionData.playerTwoStatement}</p>
-                </div>
-                <Badge className="bg-green-100 text-green-800">
-                  <Shield size={16} className="mr-1" />
-                  Statement Locked
-                </Badge>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {currentPlayer === 'player2' ? (
-                  <>
-                    <Textarea
-                      value={currentStatement}
-                      onChange={(e) => setCurrentStatement(e.target.value)}
-                      placeholder="Write your definitive statement about this issue. This is your personal truth - your feelings, your perspective, your reasoning. Choose your words carefully because once locked, this becomes your official position."
-                      className="min-h-40"
-                    />
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p>• Be honest about your feelings and perspective</p>
-                      <p>• Include your reasoning and what matters to you</p>
-                      <p>• This will be your permanent position for this discussion</p>
-                    </div>
-                    
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
+              {!myCurrentStatement ? (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium">
+                    Your personal statement on this issue:
+                  </label>
+                  <Textarea
+                    value={currentStatement}
+                    onChange={(e) => setCurrentStatement(e.target.value)}
+                    placeholder="This is your chance to articulate your position clearly and completely. Be honest, be specific, and remember - this gets locked in forever..."
+                    className="min-h-40"
+                  />
+                  
+                  {!showLockConfirm ? (
+                    <Button 
+                      onClick={() => setShowLockConfirm(true)}
+                      disabled={!currentStatement.trim()}
+                      className="w-full"
+                      variant="default"
+                    >
+                      Ready to Lock This Statement
+                    </Button>
+                  ) : (
+                    <div className="space-y-3 p-4 border border-destructive/50 bg-destructive/5 rounded-lg">
+                      <div className="flex items-center gap-2 text-destructive">
+                        <AlertTriangle size={16} />
+                        <span className="font-medium">Final Warning</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Once locked, this statement cannot be edited. It becomes your official position for this discussion. Are you absolutely sure?
+                      </p>
+                      <div className="flex gap-2">
                         <Button 
-                          disabled={!canLock}
-                          className="w-full"
-                          variant={canLock ? "default" : "secondary"}
+                          onClick={lockStatement}
+                          variant="destructive"
+                          className="flex-1"
                         >
-                          <Lock size={16} className="mr-2" />
-                          Lock Statement Forever
+                          <Lock size={16} className="mr-1" />
+                          Lock It In Forever
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="flex items-center gap-2">
-                            <AlertTriangle size={20} className="text-orange-500" />
-                            Are You Absolutely Sure?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Once you lock this statement, it becomes your immutable truth for this session. 
-                            No edits, no takebacks, no "I was emotional" excuses. This will be the 
-                            bedrock of your position throughout the entire discussion.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <div className="p-3 bg-muted rounded-lg my-4">
-                          <p className="text-sm text-foreground whitespace-pre-wrap">{currentStatement}</p>
-                        </div>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Wait, Let Me Revise</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleLockStatement}>
-                            Yes, Lock It In
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">
-                    Waiting for Player 2 to lock their statement...
-                  </p>
+                        <Button 
+                          onClick={() => setShowLockConfirm(false)}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Wait, Let Me Edit
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 border-2 border-green-500/30 rounded-lg bg-green-50/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lock size={16} className="text-green-600" />
+                    <span className="text-sm font-medium text-green-700">STATEMENT LOCKED</span>
+                  </div>
+                  <p className="text-foreground">{myCurrentStatement}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Their Statement */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant={otherPlayerStatement ? "default" : "outline"}>
+                  Their Statement
+                </Badge>
+                {otherPlayerStatement && (
+                  <div className="flex items-center gap-1">
+                    <Lock size={16} className="text-blue-500" />
+                    <span className="text-xs text-blue-600 font-medium">LOCKED</span>
+                  </div>
                 )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
-      <Card className="bg-muted/50">
-        <CardContent className="pt-6">
-          <h3 className="font-medium mb-2 flex items-center gap-2">
-            <Shield size={18} />
-            Why Statement Locking Matters:
-          </h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>• Prevents gaslighting and "I never said that" nonsense</p>
-            <p>• Creates accountability anchors for the discussion</p>
-            <p>• Forces you to actually think about your position</p>
-            <p>• Eliminates moving goalposts and narrative shifting</p>
-            <p>• Makes inconsistencies obvious when they happen</p>
+              {otherPlayerStatement ? (
+                <div className="p-4 border-2 border-blue-500/30 rounded-lg bg-blue-50/50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lock size={16} className="text-blue-600" />
+                    <span className="text-sm font-medium text-blue-700">STATEMENT LOCKED</span>
+                  </div>
+                  <p className="text-foreground">{otherPlayerStatement}</p>
+                </div>
+              ) : (
+                <div className="p-4 border border-dashed rounded-lg text-center text-muted-foreground min-h-40 flex items-center justify-center">
+                  Waiting for the other person to lock in their statement...
+                </div>
+              )}
+            </div>
           </div>
+
+          {bothStatementsLocked && (
+            <div className="pt-4 border-t text-center">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <CheckCircle2 size={20} className="text-green-500" />
+                <Badge variant="default">Both Statements Locked</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Excellent! You've both committed to your positions. Now the real fun begins - 
+                let's see if you can discuss this like civilized humans with our AI referee watching.
+              </p>
+              <Button 
+                onClick={proceedToDiscussion}
+                size="lg"
+              >
+                Enter the Moderated Discussion
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
