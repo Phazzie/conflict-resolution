@@ -1,10 +1,41 @@
 import DOMPurify from 'isomorphic-dompurify'
+import { SessionData, SessionPhase } from '@/types/session'
 
 /**
  * Sanitizes user input to prevent XSS attacks
  */
 export function sanitizeInput(input: string): string {
   return DOMPurify.sanitize(input.trim())
+}
+
+/**
+ * Validates session data integrity
+ */
+export function validateSessionData(data: any): { isValid: boolean; error?: string } {
+  if (!data || typeof data !== 'object') {
+    return { isValid: false, error: 'Session data is corrupted' }
+  }
+
+  const validPhases: SessionPhase[] = ['welcome', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary']
+  
+  if (!validPhases.includes(data.phase)) {
+    return { isValid: false, error: 'Invalid session phase' }
+  }
+
+  // Phase-specific validation
+  if (data.phase === 'steel-manning' && !data.agreedIssue) {
+    return { isValid: false, error: 'Cannot be in steel-manning phase without agreed issue' }
+  }
+
+  if (data.phase === 'statement-locking' && (!data.playerOneSteelMan || !data.playerTwoSteelMan)) {
+    return { isValid: false, error: 'Cannot be in statement-locking without completed steel-manning' }
+  }
+
+  if (data.phase === 'discussion' && (!data.playerOneStatement || !data.playerTwoStatement)) {
+    return { isValid: false, error: 'Cannot be in discussion without locked statements' }
+  }
+
+  return { isValid: true }
 }
 
 /**

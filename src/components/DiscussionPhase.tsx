@@ -6,20 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { ChatCircle, Robot, User, ArrowRight } from '@phosphor-icons/react'
 import { PhaseProps, Message } from '../types/session'
 import { validateMessageInput } from '../utils/validation'
-import { aiRateLimiter } from '../utils/aiRateLimit'
-
-// Declare spark global for TypeScript
-declare global {
-  interface Window {
-    spark: {
-      llmPrompt: (strings: TemplateStringsArray, ...values: any[]) => string
-      llm: (prompt: string, modelName?: string, jsonMode?: boolean) => Promise<string>
-    }
-  }
-}
-
-// Make spark available in the global scope
-const spark = (window as any).spark
+import { aiService } from '../utils/aiService'
 
 export default function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
   const [currentMessage, setCurrentMessage] = useState('')
@@ -56,18 +43,24 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
     updateSessionData({ messages: updatedMessages })
     setCurrentMessage('')
 
-    // Smart AI intervention - don't respond to every message
-    const shouldIntervene = needsAIIntervention(newMessage, sessionData.messages)
+    // AI intervention using the new service
+    setIsAIThinking(true)
     
-    if (shouldIntervene) {
-      setIsAIThinking(true)
+    try {
+      const aiResponse = await aiService.generateIntervention({
+        currentMessage: newMessage.content,
+        messageHistory: sessionData.messages,
+        agreedIssue: sessionData.agreedIssue,
+        playerOneStatement: sessionData.playerOneStatement,
+        playerTwoStatement: sessionData.playerTwoStatement,
+        currentPlayer
+      })
       
-      try {
-        const aiResponse = await generateAIResponse(newMessage.content, sessionData, updatedMessages)
+      if (aiResponse && aiResponse.intervention) {
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           author: 'ai',
-          content: aiResponse,
+          content: aiResponse.intervention,
           timestamp: Date.now()
         }
         
@@ -76,93 +69,11 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
         })
         
         setAiInterventionCount(prev => prev + 1)
-      } catch (error) {
-        console.error('AI response error:', error)
-        // Fallback to mock response if API fails
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          author: 'ai',
-          content: "I'm having some technical difficulties, but I'm still watching. Try to stay constructive.",
-          timestamp: Date.now()
-        }
-        updateSessionData({ 
-          messages: [...updatedMessages, aiMessage] 
-        })
-      } finally {
-        setIsAIThinking(false)
       }
-    }
-  }
-
-  // Determine if AI intervention is needed with rate limiting
-  const needsAIIntervention = (newMessage: Message, messageHistory: Message[]): boolean => {
-    const sessionId = 'current-session' // In real app, use actual session ID
-    
-    // Check rate limiting first
-    if (!aiRateLimiter.canMakeAICall(sessionId)) {
-      return false
-    }
-    
-    // Use the smart intervention logic
-    return aiRateLimiter.shouldIntervene(
-      newMessage.content, 
-      messageHistory.map(m => ({ content: m.content, author: m.author }))
-    )
-  }
-
-  const generateAIResponse = async (userMessage: string, sessionData: any, allMessages: Message[]): Promise<string> => {
-    try {
-      // Get recent conversation context (last 10 messages)
-      const recentMessages = allMessages.slice(-10)
-      const conversationHistory = recentMessages
-        .filter(m => m.author !== 'ai')
-        .map(m => `${m.author}: "${m.content}"`)
-        .join('\n')
-      
-      const prompt = spark.llmPrompt`You are the AI referee for MixitFixit, a relationship conflict resolution app. Your personality is witty, dry, and direct - like a jaded therapist who's seen it all but still wants to help.
-
-Context:
-- Issue being discussed: ${sessionData.agreedIssue}
-- Player 1's locked statement: ${sessionData.playerOneStatement}
-- Player 2's locked statement: ${sessionData.playerTwoStatement}
-- Steel-man summaries: Player 1 thinks of Player 2: "${sessionData.playerOneSteelMan}" | Player 2 thinks of Player 1: "${sessionData.playerTwoSteelMan}"
-- Recent conversation history:
-${conversationHistory}
-- Latest message from ${currentPlayer}: "${userMessage}"
-
-Your job is to:
-1. Detect unhelpful communication patterns (blame-shifting, gaslighting, deflection, stonewalling, projection, etc.)
-2. Point out contradictions with their locked statements or steel-man understanding
-3. Suggest more constructive ways to communicate
-4. Look for patterns across the conversation history
-5. Keep the tone snarky but helpful - think "disappointed but not surprised"
-
-Respond with a brief, pointed intervention (max 2 sentences). Don't lecture - make your point and move on.`
-
-      return await spark.llm(prompt)
     } catch (error) {
-      console.error('AI generation error:', error)
-      throw error
-    }
-  }
-
-If the message is constructive, acknowledge it. If it's problematic, call it out with wit.
-
-Respond in 1-2 sentences maximum. Be sharp, clever, and direct.`
-
-      const response = await spark.llm(prompt, "gpt-4o-mini")
-      return response.trim()
-    } catch (error) {
-      console.error('AI generation error:', error)
-      // Fallback responses
-      const fallbacks = [
-        "Interesting word choice there. Care to rephrase that without the blame-shifting?",
-        "That's a lovely deflection. How about addressing the actual point?",
-        "How about we try that again, but as an 'I feel' statement? Revolutionary, I know.",
-        "I'm sensing some stonewalling. Care to actually engage with what was said?",
-        "That statement seems to contradict your earlier locked position. Care to explain?"
-      ]
-      return fallbacks[Math.floor(Math.random() * fallbacks.length)]
+      console.error('AI response error:', error)
+    } finally {
+      setIsAIThinking(false)
     }
   }
 
