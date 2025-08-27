@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, X, Edit3, Handshake } from '@phosphor-icons/react'
+import { CheckCircle, X, PencilSimple, Handshake } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -122,7 +122,7 @@ export default function ResolutionPhase({ sessionData, currentPlayer, updateSess
                 disabled={!currentProposal.trim()}
                 className="w-full"
               >
-                <Edit3 size={16} className="mr-2" />
+                <PencilSimple size={16} className="mr-2" />
                 Propose This Resolution
               </Button>
             </div>
@@ -146,7 +146,7 @@ export default function ResolutionPhase({ sessionData, currentPlayer, updateSess
                   variant="default"
                   className="flex items-center gap-2"
                 >
-                  <CheckCircle2 size={16} />
+                  <CheckCircle size={16} />
                   Accept Resolution
                 </Button>
                 
@@ -163,7 +163,7 @@ export default function ResolutionPhase({ sessionData, currentPlayer, updateSess
                     disabled={!modification.trim()}
                     className="w-full flex items-center gap-2"
                   >
-                    <Edit3 size={16} />
+                    <PencilSimple size={16} />
                     Modify & Re-propose
                   </Button>
                 </div>

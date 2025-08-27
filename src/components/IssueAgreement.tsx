@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { MessageSquare, CheckCircle2, X } from '@phosphor-icons/react'
+import { ChatCircle, CheckCircle, X } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -62,7 +62,7 @@ export default function IssueAgreement({ sessionData, currentPlayer, updateSessi
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageSquare size={24} />
+            <ChatCircle size={24} />
             Issue Agreement Phase
           </CardTitle>
           <p className="text-muted-foreground">
@@ -111,7 +111,7 @@ export default function IssueAgreement({ sessionData, currentPlayer, updateSessi
                   variant="default"
                   className="flex items-center gap-2"
                 >
-                  <CheckCircle2 size={16} />
+                  <CheckCircle size={16} />
                   Accept Issue
                 </Button>
                 

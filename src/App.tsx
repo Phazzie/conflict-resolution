@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Lock, Users, MessageSquare, CheckCircle2, FileText } from '@phosphor-icons/react'
+import { Lock, Users, ChatCircle, CheckCircle, FileText } from '@phosphor-icons/react'
 import IssueAgreement from './components/IssueAgreement'
 import SteelManningPhase from './components/SteelManningPhase'
 import StatementLocking from './components/StatementLocking'
@@ -70,8 +70,22 @@ function App() {
     Math.random() > 0.5 ? 'player1' : 'player2'
   )
 
+  // Ensure sessionData is always defined
+  const safeSessionData = sessionData || {
+    phase: 'welcome' as const,
+    agreedIssue: '',
+    playerOneSteelMan: '',
+    playerTwoSteelMan: '',
+    playerOneStatement: '',
+    playerTwoStatement: '',
+    messages: [],
+    proposedResolution: '',
+    finalResolution: '',
+    sessionStarted: Date.now()
+  }
+
   const updateSessionData = (updates: Partial<SessionData>) => {
-    setSessionData(current => ({ ...current, ...updates }))
+    setSessionData({ ...safeSessionData, ...updates })
   }
 
   const startSession = () => {
@@ -96,7 +110,7 @@ function App() {
     })
   }
 
-  if (sessionData.phase === 'welcome') {
+  if (!sessionData || safeSessionData.phase === 'welcome') {
     return (
       <div className="min-h-screen bg-background p-8">
         <div className="max-w-4xl mx-auto">
@@ -122,7 +136,7 @@ function App() {
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 border rounded-lg">
-                  <MessageSquare size={20} className="text-primary" />
+                  <ChatCircle size={20} className="text-primary" />
                   <div>
                     <p className="font-medium">Issue Agreement</p>
                     <p className="text-sm text-muted-foreground">
@@ -149,7 +163,7 @@ function App() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 border rounded-lg">
-                  <MessageSquare size={20} className="text-primary" />
+                  <ChatCircle size={20} className="text-primary" />
                   <div>
                     <p className="font-medium">AI-Moderated Discussion</p>
                     <p className="text-sm text-muted-foreground">
@@ -193,61 +207,61 @@ function App() {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-muted-foreground">
-                {PHASE_NAMES[sessionData.phase]}
+                {PHASE_NAMES[safeSessionData.phase]}
               </span>
               <span className="text-sm text-muted-foreground">
-                {PHASE_PROGRESS[sessionData.phase]}%
+                {PHASE_PROGRESS[safeSessionData.phase]}%
               </span>
             </div>
-            <Progress value={PHASE_PROGRESS[sessionData.phase]} className="w-full" />
+            <Progress value={PHASE_PROGRESS[safeSessionData.phase]} className="w-full" />
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {sessionData.phase === 'issue-agreement' && (
+        {safeSessionData.phase === 'issue-agreement' && (
           <IssueAgreement 
-            sessionData={sessionData}
+            sessionData={safeSessionData}
             currentPlayer={currentPlayer}
             updateSessionData={updateSessionData}
           />
         )}
         
-        {sessionData.phase === 'steel-manning' && (
+        {safeSessionData.phase === 'steel-manning' && (
           <SteelManningPhase
-            sessionData={sessionData}
+            sessionData={safeSessionData}
             currentPlayer={currentPlayer}
             updateSessionData={updateSessionData}
           />
         )}
 
-        {sessionData.phase === 'statement-locking' && (
+        {safeSessionData.phase === 'statement-locking' && (
           <StatementLocking
-            sessionData={sessionData}
+            sessionData={safeSessionData}
             currentPlayer={currentPlayer}
             updateSessionData={updateSessionData}
           />
         )}
 
-        {sessionData.phase === 'discussion' && (
+        {safeSessionData.phase === 'discussion' && (
           <DiscussionPhase
-            sessionData={sessionData}
+            sessionData={safeSessionData}
             currentPlayer={currentPlayer}
             updateSessionData={updateSessionData}
           />
         )}
 
-        {sessionData.phase === 'resolution' && (
+        {safeSessionData.phase === 'resolution' && (
           <ResolutionPhase
-            sessionData={sessionData}
+            sessionData={safeSessionData}
             currentPlayer={currentPlayer}
             updateSessionData={updateSessionData}
           />
         )}
 
-        {sessionData.phase === 'summary' && (
+        {safeSessionData.phase === 'summary' && (
           <SessionSummary
-            sessionData={sessionData}
+            sessionData={safeSessionData}
             onReset={resetSession}
           />
         )}

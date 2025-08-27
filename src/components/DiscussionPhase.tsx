@@ -3,7 +3,20 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { MessageSquare, Robot, User, ArrowRight } from '@phosphor-icons/react'
+import { ChatCircle, Robot, User, ArrowRight } from '@phosphor-icons/react'
+
+// Declare spark global for TypeScript
+declare global {
+  interface Window {
+    spark: {
+      llmPrompt: (strings: TemplateStringsArray, ...values: any[]) => string
+      llm: (prompt: string, modelName?: string, jsonMode?: boolean) => Promise<string>
+    }
+  }
+}
+
+// Make spark available in the global scope
+const spark = (window as any).spark
 
 interface Message {
   id: string
@@ -58,11 +71,11 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
     updateSessionData({ messages: updatedMessages })
     setCurrentMessage('')
 
-    // Simulate AI response (in real app, this would call the Gemini API)
+    // Get AI response using spark.llm
     setIsAIThinking(true)
     
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(newMessage.content)
+    try {
+      const aiResponse = await generateAIResponse(newMessage.content, sessionData)
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         author: 'ai',
@@ -73,25 +86,57 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
       updateSessionData({ 
         messages: [...updatedMessages, aiMessage] 
       })
+    } catch (error) {
+      console.error('AI response error:', error)
+      // Fallback to mock response if API fails
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        author: 'ai',
+        content: "I'm having some technical difficulties, but I'm still watching your conversation. Try to stay constructive.",
+        timestamp: Date.now()
+      }
+      updateSessionData({ 
+        messages: [...updatedMessages, aiMessage] 
+      })
+    } finally {
       setIsAIThinking(false)
-    }, 1500)
+    }
   }
 
-  const generateAIResponse = (userMessage: string): string => {
-    const responses = [
-      "Interesting word choice there. Care to rephrase that without the blame-shifting?",
-      "I detect a whiff of gaslighting in that statement. Try again, but with facts this time.",
-      "That's a lovely deflection. How about addressing the actual point?",
-      "Ah, the classic 'you always/never' approach. Bold. Ineffective, but bold.",
-      "I see we're going with the 'attack the person, not the issue' strategy today.",
-      "That statement contradicts your locked position from 5 minutes ago. Goldfish memory or hoping I wouldn't notice?",
-      "How about we try that again, but as an 'I feel' statement? Revolutionary, I know.",
-      "Fascinating use of projection there. Want to own your part in this?",
-      "I'm sensing some stonewalling. Care to actually engage with what was said?",
-      "That's not a response, that's an accusation. Different things entirely."
-    ]
-    
-    return responses[Math.floor(Math.random() * responses.length)]
+  const generateAIResponse = async (userMessage: string, sessionData: SessionData): Promise<string> => {
+    try {
+      const prompt = spark.llmPrompt`You are the AI referee for MixitFixit, a relationship conflict resolution app. Your personality is witty, dry, and direct - like a jaded therapist who's seen it all but still wants to help.
+
+Context:
+- Issue being discussed: ${sessionData.agreedIssue}
+- Current player's locked statement: ${currentPlayer === 'player1' ? sessionData.playerOneStatement : sessionData.playerTwoStatement}
+- Other player's locked statement: ${currentPlayer === 'player1' ? sessionData.playerTwoStatement : sessionData.playerOneStatement}
+- Recent message: ${userMessage}
+
+Your job is to:
+1. Detect unhelpful communication patterns (blame-shifting, gaslighting, deflection, stonewalling, projection, etc.)
+2. Suggest more constructive ways to communicate
+3. Point out contradictions with their locked statements
+4. Keep the tone snarky but helpful - think "disappointed but not surprised"
+
+If the message is constructive, acknowledge it. If it's problematic, call it out with wit.
+
+Respond in 1-2 sentences maximum. Be sharp, clever, and direct.`
+
+      const response = await spark.llm(prompt, "gpt-4o-mini")
+      return response.trim()
+    } catch (error) {
+      console.error('AI generation error:', error)
+      // Fallback responses
+      const fallbacks = [
+        "Interesting word choice there. Care to rephrase that without the blame-shifting?",
+        "That's a lovely deflection. How about addressing the actual point?",
+        "How about we try that again, but as an 'I feel' statement? Revolutionary, I know.",
+        "I'm sensing some stonewalling. Care to actually engage with what was said?",
+        "That statement seems to contradict your earlier locked position. Care to explain?"
+      ]
+      return fallbacks[Math.floor(Math.random() * fallbacks.length)]
+    }
   }
 
   const proposeResolution = () => {
@@ -110,7 +155,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageSquare size={24} />
+            <ChatCircle size={24} />
             Moderated Discussion: Now You Can Argue (But Smartly)
           </CardTitle>
           <p className="text-muted-foreground">
@@ -138,7 +183,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
             <div className="h-96 overflow-y-auto p-4 space-y-3">
               {sessionData.messages.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
-                  <MessageSquare size={48} className="mx-auto mb-2 opacity-50" />
+                  <ChatCircle size={48} className="mx-auto mb-2 opacity-50" />
                   <p>No messages yet. Time to break the ice... carefully.</p>
                 </div>
               ) : (

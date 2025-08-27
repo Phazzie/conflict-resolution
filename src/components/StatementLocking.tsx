@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Lock, CheckCircle2, AlertTriangle } from '@phosphor-icons/react'
+import { Lock, CheckCircle, Warning } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -115,7 +115,7 @@ export default function StatementLocking({ sessionData, currentPlayer, updateSes
                   ) : (
                     <div className="space-y-3 p-4 border border-destructive/50 bg-destructive/5 rounded-lg">
                       <div className="flex items-center gap-2 text-destructive">
-                        <AlertTriangle size={16} />
+                        <Warning size={16} />
                         <span className="font-medium">Final Warning</span>
                       </div>
                       <p className="text-sm text-muted-foreground">
@@ -185,7 +185,7 @@ export default function StatementLocking({ sessionData, currentPlayer, updateSes
           {bothStatementsLocked && (
             <div className="pt-4 border-t text-center">
               <div className="flex items-center justify-center gap-2 mb-3">
-                <CheckCircle2 size={20} className="text-green-500" />
+                <CheckCircle size={20} className="text-green-500" />
                 <Badge variant="default">Both Statements Locked</Badge>
               </div>
               <p className="text-sm text-muted-foreground mb-4">

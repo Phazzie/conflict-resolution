@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Users, CheckCircle2, X, Eye } from '@phosphor-icons/react'
+import { Users, CheckCircle, X, Eye } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string
@@ -87,7 +87,7 @@ export default function SteelManningPhase({ sessionData, currentPlayer, updateSe
                 <Badge variant={myCurrentSteelMan ? "default" : "outline"}>
                   Your Steel-Man
                 </Badge>
-                {myCurrentSteelMan && <CheckCircle2 size={16} className="text-green-500" />}
+                {myCurrentSteelMan && <CheckCircle size={16} className="text-green-500" />}
               </div>
 
               {!myCurrentSteelMan ? (
@@ -139,7 +139,7 @@ export default function SteelManningPhase({ sessionData, currentPlayer, updateSe
                       variant="default"
                       className="flex-1"
                     >
-                      <CheckCircle2 size={16} className="mr-1" />
+                      <CheckCircle size={16} className="mr-1" />
                       Accurate Enough
                     </Button>
                     <Button 
