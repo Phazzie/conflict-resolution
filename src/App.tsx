@@ -5,52 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Lock, Users, ChatCircle, CheckCircle, FileText } from '@phosphor-icons/react'
+import { SessionData, SessionPhase, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
+import ErrorBoundary from './components/ErrorBoundary'
 import IssueAgreement from './components/IssueAgreement'
 import SteelManningPhase from './components/SteelManningPhase'
 import StatementLocking from './components/StatementLocking'
 import DiscussionPhase from './components/DiscussionPhase'
 import ResolutionPhase from './components/ResolutionPhase'
 import SessionSummary from './components/SessionSummary'
-
-type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary'
-
-interface SessionData {
-  phase: SessionPhase
-  agreedIssue: string
-  playerOneSteelMan: string
-  playerTwoSteelMan: string
-  playerOneStatement: string
-  playerTwoStatement: string
-  messages: Array<{
-    id: string
-    author: 'player1' | 'player2' | 'ai'
-    content: string
-    timestamp: number
-  }>
-  proposedResolution: string
-  finalResolution: string
-  sessionStarted: number
-}
-
-const PHASE_PROGRESS = {
-  'welcome': 0,
-  'issue-agreement': 20,
-  'steel-manning': 40,
-  'statement-locking': 60,
-  'discussion': 80,
-  'resolution': 90,
-  'summary': 100
-}
-
-const PHASE_NAMES = {
-  'welcome': 'Digital Thunderdome Entry',
-  'issue-agreement': 'Issue Agreement',
-  'steel-manning': 'Steel-Manning Phase',
-  'statement-locking': 'Statement Locking',
-  'discussion': 'Moderated Discussion', 
-  'resolution': 'Resolution Negotiation',
-  'summary': 'Battle Report'
-}
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -66,9 +28,16 @@ function App() {
     sessionStarted: Date.now()
   })
 
-  const [currentPlayer] = useState<'player1' | 'player2'>(() => 
-    Math.random() > 0.5 ? 'player1' : 'player2'
-  )
+  const [currentPlayer] = useState<PlayerRole>(() => {
+    // Try to recover existing player role, or assign new one
+    const savedPlayer = localStorage.getItem('mixitfixit-player-role')
+    if (savedPlayer && (savedPlayer === 'player1' || savedPlayer === 'player2')) {
+      return savedPlayer as PlayerRole
+    }
+    const newPlayer = Math.random() > 0.5 ? 'player1' : 'player2'
+    localStorage.setItem('mixitfixit-player-role', newPlayer)
+    return newPlayer
+  })
 
   // Ensure sessionData is always defined
   const safeSessionData = sessionData || {
@@ -96,6 +65,7 @@ function App() {
   }
 
   const resetSession = () => {
+    localStorage.removeItem('mixitfixit-player-role')
     setSessionData({
       phase: 'welcome',
       agreedIssue: '',
@@ -110,8 +80,12 @@ function App() {
     })
   }
 
-  if (!sessionData || safeSessionData.phase === 'welcome') {
-    return (
+  // Check for session recovery
+  const hasActiveSession = sessionData && sessionData.phase !== 'welcome' && 
+    (sessionData.agreedIssue || sessionData.messages.length > 0)
+
+  return (
+    <ErrorBoundary>
       <div className="min-h-screen bg-background p-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
@@ -185,11 +159,93 @@ function App() {
           </Card>
         </div>
       </div>
-    )
-  }
+    </ErrorBoundary>
+  )
+}
+
+if (!sessionData || safeSessionData.phase === 'welcome') {
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-foreground mb-4">MixitFixit</h1>
+            <p className="text-xl text-muted-foreground mb-2">
+              Digital Thunderdome for Dysfunctional Relationships
+            </p>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Welcome to the structured battleground where you're forced to listen, articulate, 
+              and maybe (just maybe) not be a complete asshat. No mudslinging until you 
+              actually agree on what you're fighting about.
+            </p>
+          </div>
+
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users size={24} />
+                Ready to Stop Screaming and Start Scheming?
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <ChatCircle size={20} className="text-primary" />
+                  <div>
+                    <p className="font-medium">Issue Agreement</p>
+                    <p className="text-sm text-muted-foreground">
+                      Actually agree on what you're fighting about first
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <Users size={20} className="text-primary" />
+                  <div>
+                    <p className="font-medium">Steel-Manning Phase</p>
+                    <p className="text-sm text-muted-foreground">
+                      Prove you're not a narcissist by understanding the other person
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <Lock size={20} className="text-primary" />
+                  <div>
+                    <p className="font-medium">Statement Locking</p>
+                    <p className="text-sm text-muted-foreground">
+                      Carve your truth in digital stone - no takebacks
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <ChatCircle size={20} className="text-primary" />
+                  <div>
+                    <p className="font-medium">AI-Moderated Discussion</p>
+                    <p className="text-sm text-muted-foreground">
+                      Chat with a snarky AI referee calling out your BS
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t">
+                <Button onClick={startSession} size="lg" className="w-full">
+                  Enter the Digital Thunderdome
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  You're {currentPlayer === 'player1' ? 'Player 1' : 'Player 2'} in this session
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </ErrorBoundary>
+  )
+}
 
   return (
-    <div className="min-h-screen bg-background">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -198,6 +254,11 @@ function App() {
               <Badge variant="outline">
                 {currentPlayer === 'player1' ? 'Player 1' : 'Player 2'}
               </Badge>
+              {hasActiveSession && (
+                <Badge variant="secondary" className="text-xs">
+                  Session Recovered
+                </Badge>
+              )}
             </div>
             <Button variant="outline" onClick={resetSession}>
               Reset Session
@@ -267,6 +328,7 @@ function App() {
         )}
       </main>
     </div>
+    </ErrorBoundary>
   )
 }
 

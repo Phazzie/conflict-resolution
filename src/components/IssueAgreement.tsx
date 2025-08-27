@@ -1,42 +1,39 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ChatCircle, CheckCircle, X } from '@phosphor-icons/react'
+import { PhaseProps } from '../types/session'
+import { validateIssueInput } from '../utils/validation'
+import { SuccessCheckmark, LoadingSpinner } from '@/components/ui/loading'
 
-interface SessionData {
-  phase: string
-  agreedIssue: string
-  playerOneSteelMan: string
-  playerTwoSteelMan: string
-  playerOneStatement: string
-  playerTwoStatement: string
-  messages: Array<{
-    id: string
-    author: 'player1' | 'player2' | 'ai'
-    content: string
-    timestamp: number
-  }>
-  proposedResolution: string
-  finalResolution: string
-  sessionStarted: number
-}
-
-interface IssueAgreementProps {
-  sessionData: SessionData
-  currentPlayer: 'player1' | 'player2'
-  updateSessionData: (updates: Partial<SessionData>) => void
-}
-
-export default function IssueAgreement({ sessionData, currentPlayer, updateSessionData }: IssueAgreementProps) {
+const IssueAgreement = React.memo(({ sessionData, currentPlayer, updateSessionData }: PhaseProps) => {
   const [proposedIssue, setProposedIssue] = useState('')
   const [modification, setModification] = useState('')
+  const [validationError, setValidationError] = useState<string>('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
 
-  const proposeIssue = () => {
-    if (proposedIssue.trim()) {
-      updateSessionData({ agreedIssue: proposedIssue.trim() })
+  const proposeIssue = async () => {
+    setIsSubmitting(true)
+    const validation = validateIssueInput(proposedIssue)
+    if (!validation.isValid) {
+      setValidationError(validation.error || 'Invalid input')
+      setIsSubmitting(false)
+      return
     }
+    
+    // Simulate processing time for better UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    setValidationError('')
+    updateSessionData({ agreedIssue: proposedIssue.trim() })
+    setShowSuccess(true)
+    setIsSubmitting(false)
+    
+    // Hide success after animation
+    setTimeout(() => setShowSuccess(false), 2000)
   }
 
   const acceptIssue = () => {
@@ -44,15 +41,21 @@ export default function IssueAgreement({ sessionData, currentPlayer, updateSessi
   }
 
   const modifyIssue = () => {
-    if (modification.trim()) {
-      updateSessionData({ agreedIssue: modification.trim() })
-      setModification('')
+    const validation = validateIssueInput(modification)
+    if (!validation.isValid) {
+      setValidationError(validation.error || 'Invalid modification')
+      return
     }
+    
+    setValidationError('')
+    updateSessionData({ agreedIssue: modification.trim() })
+    setModification('')
   }
 
   const rejectIssue = () => {
     updateSessionData({ agreedIssue: '' })
     setProposedIssue('')
+    setValidationError('')
   }
 
   const hasProposedIssue = sessionData.agreedIssue.length > 0
@@ -73,23 +76,41 @@ export default function IssueAgreement({ sessionData, currentPlayer, updateSessi
           {!hasProposedIssue ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label htmlFor="issue-input" className="block text-sm font-medium mb-2">
                   What's the issue you want to address?
                 </label>
                 <Textarea
+                  id="issue-input"
                   value={proposedIssue}
-                  onChange={(e) => setProposedIssue(e.target.value)}
+                  onChange={(e) => {
+                    setProposedIssue(e.target.value)
+                    setValidationError('')
+                  }}
                   placeholder="Be specific. 'You're annoying' doesn't count as constructive..."
                   className="min-h-24"
+                  aria-describedby={validationError ? "issue-error" : undefined}
+                  aria-invalid={!!validationError}
                 />
+                {validationError && (
+                  <p id="issue-error" role="alert" className="text-sm text-destructive">{validationError}</p>
+                )}
               </div>
               <Button 
                 onClick={proposeIssue} 
-                disabled={!proposedIssue.trim()}
+                disabled={!proposedIssue.trim() || isSubmitting}
                 className="w-full"
+                aria-label="Propose this issue for discussion"
               >
-                Propose This Issue
+                {isSubmitting ? (
+                  <LoadingSpinner size="sm" text="Processing..." />
+                ) : (
+                  'Propose This Issue'
+                )}
               </Button>
+              
+              {showSuccess && (
+                <SuccessCheckmark text="Issue proposed successfully!" />
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -118,10 +139,16 @@ export default function IssueAgreement({ sessionData, currentPlayer, updateSessi
                 <div className="space-y-2">
                   <Textarea
                     value={modification}
-                    onChange={(e) => setModification(e.target.value)}
+                    onChange={(e) => {
+                      setModification(e.target.value)
+                      setValidationError('')
+                    }}
                     placeholder="Suggest a modification..."
                     className="min-h-16"
                   />
+                  {validationError && (
+                    <p className="text-sm text-destructive">{validationError}</p>
+                  )}
                   <Button 
                     onClick={modifyIssue}
                     variant="secondary"
@@ -147,4 +174,8 @@ export default function IssueAgreement({ sessionData, currentPlayer, updateSessi
       </Card>
     </div>
   )
-}
+})
+
+IssueAgreement.displayName = 'IssueAgreement'
+
+export default IssueAgreement

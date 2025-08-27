@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ChatCircle, Robot, User, ArrowRight } from '@phosphor-icons/react'
+import { PhaseProps, Message } from '../types/session'
+import { validateMessageInput } from '../utils/validation'
+import { aiRateLimiter } from '../utils/aiRateLimit'
 
 // Declare spark global for TypeScript
 declare global {
@@ -18,35 +21,11 @@ declare global {
 // Make spark available in the global scope
 const spark = (window as any).spark
 
-interface Message {
-  id: string
-  author: 'player1' | 'player2' | 'ai'
-  content: string
-  timestamp: number
-}
-
-interface SessionData {
-  phase: string
-  agreedIssue: string
-  playerOneSteelMan: string
-  playerTwoSteelMan: string
-  playerOneStatement: string
-  playerTwoStatement: string
-  messages: Message[]
-  proposedResolution: string
-  finalResolution: string
-  sessionStarted: number
-}
-
-interface DiscussionPhaseProps {
-  sessionData: SessionData
-  currentPlayer: 'player1' | 'player2'
-  updateSessionData: (updates: Partial<SessionData>) => void
-}
-
-export default function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: DiscussionPhaseProps) {
+export default function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
   const [currentMessage, setCurrentMessage] = useState('')
   const [isAIThinking, setIsAIThinking] = useState(false)
+  const [validationError, setValidationError] = useState<string>('')
+  const [aiInterventionCount, setAiInterventionCount] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -58,7 +37,13 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
   }, [sessionData.messages])
 
   const sendMessage = async () => {
-    if (!currentMessage.trim()) return
+    const validation = validateMessageInput(currentMessage)
+    if (!validation.isValid) {
+      setValidationError(validation.error || 'Invalid message')
+      return
+    }
+    
+    setValidationError('')
 
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -71,53 +56,95 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
     updateSessionData({ messages: updatedMessages })
     setCurrentMessage('')
 
-    // Get AI response using spark.llm
-    setIsAIThinking(true)
+    // Smart AI intervention - don't respond to every message
+    const shouldIntervene = needsAIIntervention(newMessage, sessionData.messages)
     
-    try {
-      const aiResponse = await generateAIResponse(newMessage.content, sessionData)
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        author: 'ai',
-        content: aiResponse,
-        timestamp: Date.now()
-      }
+    if (shouldIntervene) {
+      setIsAIThinking(true)
       
-      updateSessionData({ 
-        messages: [...updatedMessages, aiMessage] 
-      })
-    } catch (error) {
-      console.error('AI response error:', error)
-      // Fallback to mock response if API fails
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        author: 'ai',
-        content: "I'm having some technical difficulties, but I'm still watching your conversation. Try to stay constructive.",
-        timestamp: Date.now()
+      try {
+        const aiResponse = await generateAIResponse(newMessage.content, sessionData, updatedMessages)
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          author: 'ai',
+          content: aiResponse,
+          timestamp: Date.now()
+        }
+        
+        updateSessionData({ 
+          messages: [...updatedMessages, aiMessage] 
+        })
+        
+        setAiInterventionCount(prev => prev + 1)
+      } catch (error) {
+        console.error('AI response error:', error)
+        // Fallback to mock response if API fails
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          author: 'ai',
+          content: "I'm having some technical difficulties, but I'm still watching. Try to stay constructive.",
+          timestamp: Date.now()
+        }
+        updateSessionData({ 
+          messages: [...updatedMessages, aiMessage] 
+        })
+      } finally {
+        setIsAIThinking(false)
       }
-      updateSessionData({ 
-        messages: [...updatedMessages, aiMessage] 
-      })
-    } finally {
-      setIsAIThinking(false)
     }
   }
 
-  const generateAIResponse = async (userMessage: string, sessionData: SessionData): Promise<string> => {
+  // Determine if AI intervention is needed with rate limiting
+  const needsAIIntervention = (newMessage: Message, messageHistory: Message[]): boolean => {
+    const sessionId = 'current-session' // In real app, use actual session ID
+    
+    // Check rate limiting first
+    if (!aiRateLimiter.canMakeAICall(sessionId)) {
+      return false
+    }
+    
+    // Use the smart intervention logic
+    return aiRateLimiter.shouldIntervene(
+      newMessage.content, 
+      messageHistory.map(m => ({ content: m.content, author: m.author }))
+    )
+  }
+
+  const generateAIResponse = async (userMessage: string, sessionData: any, allMessages: Message[]): Promise<string> => {
     try {
+      // Get recent conversation context (last 10 messages)
+      const recentMessages = allMessages.slice(-10)
+      const conversationHistory = recentMessages
+        .filter(m => m.author !== 'ai')
+        .map(m => `${m.author}: "${m.content}"`)
+        .join('\n')
+      
       const prompt = spark.llmPrompt`You are the AI referee for MixitFixit, a relationship conflict resolution app. Your personality is witty, dry, and direct - like a jaded therapist who's seen it all but still wants to help.
 
 Context:
 - Issue being discussed: ${sessionData.agreedIssue}
-- Current player's locked statement: ${currentPlayer === 'player1' ? sessionData.playerOneStatement : sessionData.playerTwoStatement}
-- Other player's locked statement: ${currentPlayer === 'player1' ? sessionData.playerTwoStatement : sessionData.playerOneStatement}
-- Recent message: ${userMessage}
+- Player 1's locked statement: ${sessionData.playerOneStatement}
+- Player 2's locked statement: ${sessionData.playerTwoStatement}
+- Steel-man summaries: Player 1 thinks of Player 2: "${sessionData.playerOneSteelMan}" | Player 2 thinks of Player 1: "${sessionData.playerTwoSteelMan}"
+- Recent conversation history:
+${conversationHistory}
+- Latest message from ${currentPlayer}: "${userMessage}"
 
 Your job is to:
 1. Detect unhelpful communication patterns (blame-shifting, gaslighting, deflection, stonewalling, projection, etc.)
-2. Suggest more constructive ways to communicate
-3. Point out contradictions with their locked statements
-4. Keep the tone snarky but helpful - think "disappointed but not surprised"
+2. Point out contradictions with their locked statements or steel-man understanding
+3. Suggest more constructive ways to communicate
+4. Look for patterns across the conversation history
+5. Keep the tone snarky but helpful - think "disappointed but not surprised"
+
+Respond with a brief, pointed intervention (max 2 sentences). Don't lecture - make your point and move on.`
+
+      return await spark.llm(prompt)
+    } catch (error) {
+      console.error('AI generation error:', error)
+      throw error
+    }
+  }
 
 If the message is constructive, acknowledge it. If it's problematic, call it out with wit.
 
@@ -253,13 +280,21 @@ Respond in 1-2 sentences maximum. Be sharp, clever, and direct.`
             {/* Message Input */}
             <div className="border-t p-4">
               <div className="flex gap-2">
-                <Input
-                  value={currentMessage}
-                  onChange={(e) => setCurrentMessage(e.target.value)}
-                  placeholder="Type your message... (the AI is watching)"
-                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                  disabled={isAIThinking}
-                />
+                <div className="flex-1">
+                  <Input
+                    value={currentMessage}
+                    onChange={(e) => {
+                      setCurrentMessage(e.target.value)
+                      setValidationError('')
+                    }}
+                    placeholder="Type your message... (the AI is watching)"
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                    disabled={isAIThinking}
+                  />
+                  {validationError && (
+                    <p className="text-sm text-destructive mt-1">{validationError}</p>
+                  )}
+                </div>
                 <Button 
                   onClick={sendMessage}
                   disabled={!currentMessage.trim() || isAIThinking}
@@ -270,19 +305,32 @@ Respond in 1-2 sentences maximum. Be sharp, clever, and direct.`
             </div>
           </div>
 
-          {/* Progress to Resolution */}
-          <div className="pt-4 border-t text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              Feeling like you've made some progress? Ready to propose a resolution?
-            </p>
-            <Button 
-              onClick={proposeResolution}
-              variant="default"
-              className="flex items-center gap-2"
-            >
-              <ArrowRight size={16} />
-              Propose a Resolution
-            </Button>
+          {/* Stats and Resolution */}
+          <div className="pt-4 border-t">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm text-muted-foreground">
+                Messages: {sessionData.messages.length} • AI Interventions: {aiInterventionCount}
+              </div>
+              <Badge variant="outline">
+                {sessionData.messages.length < 6 ? 'Getting Started' : 
+                 sessionData.messages.length < 20 ? 'Making Progress' : 
+                 'Deep Discussion'}
+              </Badge>
+            </div>
+            
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-4">
+                Feeling like you've made some progress? Ready to propose a resolution?
+              </p>
+              <Button 
+                onClick={proposeResolution}
+                variant="default"
+                className="flex items-center gap-2"
+              >
+                <ArrowRight size={16} />
+                Propose a Resolution
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

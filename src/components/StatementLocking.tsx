@@ -1,50 +1,35 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Lock, CheckCircle, Warning } from '@phosphor-icons/react'
+import { PhaseProps } from '../types/session'
+import { validateStatementInput } from '../utils/validation'
 
-interface SessionData {
-  phase: string
-  agreedIssue: string
-  playerOneSteelMan: string
-  playerTwoSteelMan: string
-  playerOneStatement: string
-  playerTwoStatement: string
-  messages: Array<{
-    id: string
-    author: 'player1' | 'player2' | 'ai'
-    content: string
-    timestamp: number
-  }>
-  proposedResolution: string
-  finalResolution: string
-  sessionStarted: number
-}
-
-interface StatementLockingProps {
-  sessionData: SessionData
-  currentPlayer: 'player1' | 'player2'
-  updateSessionData: (updates: Partial<SessionData>) => void
-}
-
-export default function StatementLocking({ sessionData, currentPlayer, updateSessionData }: StatementLockingProps) {
+const StatementLocking = React.memo(({ sessionData, currentPlayer, updateSessionData }: PhaseProps) => {
   const [currentStatement, setCurrentStatement] = useState('')
+  const [validationError, setValidationError] = useState<string>('')
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   
+  const [showLockConfirm, setShowLockConfirm] = useState(false)
   const myCurrentStatement = currentPlayer === 'player1' ? sessionData.playerOneStatement : sessionData.playerTwoStatement
   const otherPlayerStatement = currentPlayer === 'player1' ? sessionData.playerTwoStatement : sessionData.playerOneStatement
 
   const lockStatement = () => {
-    if (currentStatement.trim()) {
-      const updates = currentPlayer === 'player1' 
-        ? { playerOneStatement: currentStatement.trim() }
-        : { playerTwoStatement: currentStatement.trim() }
-      updateSessionData(updates)
-      setCurrentStatement('')
-      setShowLockConfirm(false)
+    const validation = validateStatementInput(currentStatement)
+    if (!validation.isValid) {
+      setValidationError(validation.error || 'Invalid statement')
+      return
     }
+    
+    setValidationError('')
+    const updates = currentPlayer === 'player1' 
+      ? { playerOneStatement: currentStatement.trim() }
+      : { playerTwoStatement: currentStatement.trim() }
+    updateSessionData(updates)
+    setCurrentStatement('')
+    setShowLockConfirm(false)
   }
 
   const bothStatementsLocked = sessionData.playerOneStatement && sessionData.playerTwoStatement
@@ -204,4 +189,8 @@ export default function StatementLocking({ sessionData, currentPlayer, updateSes
       </Card>
     </div>
   )
-}
+})
+
+StatementLocking.displayName = 'StatementLocking'
+
+export default StatementLocking

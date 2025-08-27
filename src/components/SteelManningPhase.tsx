@@ -1,66 +1,72 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Users, CheckCircle, X, Eye } from '@phosphor-icons/react'
+import { PhaseProps } from '../types/session'
+import { validateSteelManInput } from '../utils/validation'
 
-interface SessionData {
-  phase: string
-  agreedIssue: string
-  playerOneSteelMan: string
-  playerTwoSteelMan: string
-  playerOneStatement: string
-  playerTwoStatement: string
-  messages: Array<{
-    id: string
-    author: 'player1' | 'player2' | 'ai'
-    content: string
-    timestamp: number
-  }>
-  proposedResolution: string
-  finalResolution: string
-  sessionStarted: number
-}
-
-interface SteelManningPhaseProps {
-  sessionData: SessionData
-  currentPlayer: 'player1' | 'player2'
-  updateSessionData: (updates: Partial<SessionData>) => void
-}
-
-export default function SteelManningPhase({ sessionData, currentPlayer, updateSessionData }: SteelManningPhaseProps) {
+const SteelManningPhase = React.memo(({ sessionData, currentPlayer, updateSessionData }: PhaseProps) => {
   const [currentSteelMan, setCurrentSteelMan] = useState('')
+  const [validationError, setValidationError] = useState<string>('')
   
   const otherPlayer = currentPlayer === 'player1' ? 'player2' : 'player1'
   const myCurrentSteelMan = currentPlayer === 'player1' ? sessionData.playerOneSteelMan : sessionData.playerTwoSteelMan
   const otherPlayerSteelMan = currentPlayer === 'player1' ? sessionData.playerTwoSteelMan : sessionData.playerOneSteelMan
+  
+  // Track approval states - in real app this would be in sessionData
+  const [playerOneApproved, setPlayerOneApproved] = useState(false)
+  const [playerTwoApproved, setPlayerTwoApproved] = useState(false)
 
   const submitSteelMan = () => {
-    if (currentSteelMan.trim()) {
-      const updates = currentPlayer === 'player1' 
-        ? { playerOneSteelMan: currentSteelMan.trim() }
-        : { playerTwoSteelMan: currentSteelMan.trim() }
-      updateSessionData(updates)
-      setCurrentSteelMan('')
+    const validation = validateSteelManInput(currentSteelMan)
+    if (!validation.isValid) {
+      setValidationError(validation.error || 'Invalid steel-man attempt')
+      return
     }
+    
+    setValidationError('')
+    const updates = currentPlayer === 'player1' 
+      ? { playerOneSteelMan: currentSteelMan.trim() }
+      : { playerTwoSteelMan: currentSteelMan.trim() }
+    updateSessionData(updates)
+    setCurrentSteelMan('')
   }
 
   const approveSteelMan = () => {
-    // For demo purposes, auto-approve. In real app, this would need more complex approval logic
-    if (sessionData.playerOneSteelMan && sessionData.playerTwoSteelMan) {
+    if (currentPlayer === 'player1') {
+      setPlayerOneApproved(true)
+    } else {
+      setPlayerTwoApproved(true)
+    }
+    
+    // Only proceed if both have submitted AND both have approved
+    if ((currentPlayer === 'player1' ? playerTwoApproved : playerOneApproved) && 
+        sessionData.playerOneSteelMan && 
+        sessionData.playerTwoSteelMan) {
       updateSessionData({ phase: 'statement-locking' })
     }
   }
 
   const rejectSteelMan = () => {
+    // Reset the other player's steel-man and their approval
     const updates = otherPlayer === 'player1' 
       ? { playerOneSteelMan: '' }
       : { playerTwoSteelMan: '' }
     updateSessionData(updates)
+    
+    // Reset approvals
+    if (otherPlayer === 'player1') {
+      setPlayerOneApproved(false)
+    } else {
+      setPlayerTwoApproved(false)
+    }
   }
 
-  const bothCompleted = sessionData.playerOneSteelMan && sessionData.playerTwoSteelMan
+  const bothSubmitted = sessionData.playerOneSteelMan && sessionData.playerTwoSteelMan
+  const bothApproved = playerOneApproved && playerTwoApproved
+  const canProceed = bothSubmitted && bothApproved
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -97,10 +103,16 @@ export default function SteelManningPhase({ sessionData, currentPlayer, updateSe
                   </label>
                   <Textarea
                     value={currentSteelMan}
-                    onChange={(e) => setCurrentSteelMan(e.target.value)}
+                    onChange={(e) => {
+                      setCurrentSteelMan(e.target.value)
+                      setValidationError('')
+                    }}
                     placeholder="What do they think? Why do they feel this way? What's their reasoning? Be honest and accurate..."
                     className="min-h-32"
                   />
+                  {validationError && (
+                    <p className="text-sm text-destructive">{validationError}</p>
+                  )}
                   <Button 
                     onClick={submitSteelMan}
                     disabled={!currentSteelMan.trim()}
@@ -124,6 +136,9 @@ export default function SteelManningPhase({ sessionData, currentPlayer, updateSe
                   Their Steel-Man
                 </Badge>
                 {otherPlayerSteelMan && <Eye size={16} className="text-blue-500" />}
+                {currentPlayer === 'player1' ? playerOneApproved : playerTwoApproved && (
+                  <CheckCircle size={16} className="text-green-500" />
+                )}
               </div>
 
               {otherPlayerSteelMan ? (
@@ -138,14 +153,16 @@ export default function SteelManningPhase({ sessionData, currentPlayer, updateSe
                       onClick={approveSteelMan}
                       variant="default"
                       className="flex-1"
+                      disabled={currentPlayer === 'player1' ? playerOneApproved : playerTwoApproved}
                     >
                       <CheckCircle size={16} className="mr-1" />
-                      Accurate Enough
+                      {currentPlayer === 'player1' ? playerOneApproved : playerTwoApproved ? 'Approved' : 'Accurate Enough'}
                     </Button>
                     <Button 
                       onClick={rejectSteelMan}
                       variant="destructive"
                       className="flex-1"
+                      disabled={currentPlayer === 'player1' ? playerOneApproved : playerTwoApproved}
                     >
                       <X size={16} className="mr-1" />
                       Try Again
@@ -160,12 +177,11 @@ export default function SteelManningPhase({ sessionData, currentPlayer, updateSe
             </div>
           </div>
 
-          {bothCompleted && (
+          {canProceed && (
             <div className="pt-4 border-t text-center">
-              <Badge variant="default" className="mb-2">Both Steel-Mans Complete</Badge>
+              <Badge variant="default" className="mb-2">Both Steel-Mans Approved</Badge>
               <p className="text-sm text-muted-foreground mb-4">
-                Great! You've both proven you can at least pretend to understand each other. 
-                Ready to lock in your personal statements?
+                Excellent! You've both demonstrated understanding. Ready to lock in your positions?
               </p>
               <Button 
                 onClick={() => updateSessionData({ phase: 'statement-locking' })}
@@ -175,8 +191,21 @@ export default function SteelManningPhase({ sessionData, currentPlayer, updateSe
               </Button>
             </div>
           )}
+          
+          {bothSubmitted && !canProceed && (
+            <div className="pt-4 border-t text-center">
+              <Badge variant="outline" className="mb-2">Waiting for Approval</Badge>
+              <p className="text-sm text-muted-foreground">
+                Both steel-mans submitted, but someone needs to approve accuracy before proceeding.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   )
-}
+})
+
+SteelManningPhase.displayName = 'SteelManningPhase'
+
+export default SteelManningPhase
