@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Toaster } from '@/components/ui/sonner'
-import { Lock, Users, ChatCircle, CircleNotch, ChartBar, History, Heart } from '@phosphor-icons/react'
+import { Lock, Users, ChatCircle, CircleNotch, ChartBar, History, Heart, Brain } from '@phosphor-icons/react'
 import { SessionData, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
 import { validateSessionData } from './utils/validation'
 import { clearSession } from './utils/sessionPersistence'
@@ -23,6 +23,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard'
 import SessionSharing from './components/SessionSharing'
 import SessionHistoryDashboard from './components/SessionHistoryDashboard'
 import CouplesDashboard from './components/CouplesDashboard'
+import PatternRecognitionDashboard from './components/PatternRecognitionDashboard'
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -158,6 +159,10 @@ function App() {
 
   const viewCouplesDashboard = useCallback(() => {
     updateSessionData({ phase: 'couples-dashboard' })
+  }, [updateSessionData])
+
+  const viewPatternRecognition = useCallback(() => {
+    updateSessionData({ phase: 'pattern-recognition' })
   }, [updateSessionData])
 
   const saveCurrentSession = useCallback(async (outcome: 'resolved' | 'stalemate' | 'abandoned') => {
@@ -304,6 +309,15 @@ function App() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 border rounded-lg">
+                    <Brain size={16} className="sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm sm:text-base">Pattern Recognition</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        AI-powered detection of recurring relationship dynamics
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 border rounded-lg">
                     <Heart size={16} className="sm:w-5 sm:h-5 text-pink-500 flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="font-medium text-sm sm:text-base">Couples Dashboard</p>
@@ -318,15 +332,26 @@ function App() {
                   <Button onClick={startSession} size="lg" className="w-full text-sm sm:text-base mb-3">
                     Enter the Digital Thunderdome
                   </Button>
-                  <Button 
-                    onClick={() => updateSessionData({ phase: 'couples-dashboard' })} 
-                    variant="outline" 
-                    size="lg" 
-                    className="w-full text-sm sm:text-base"
-                  >
-                    <Heart size={16} className="mr-2" />
-                    View Couples Dashboard
-                  </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Button 
+                      onClick={() => updateSessionData({ phase: 'pattern-recognition' })} 
+                      variant="outline" 
+                      size="lg" 
+                      className="text-sm sm:text-base"
+                    >
+                      <Brain size={16} className="mr-2" />
+                      Pattern Analysis
+                    </Button>
+                    <Button 
+                      onClick={() => updateSessionData({ phase: 'couples-dashboard' })} 
+                      variant="outline" 
+                      size="lg" 
+                      className="text-sm sm:text-base"
+                    >
+                      <Heart size={16} className="mr-2" />
+                      Couples Dashboard
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground text-center mt-2">
                     You're {currentPlayer === 'player1' ? 'Player 1' : 'Player 2'} in this session
                   </p>
@@ -369,6 +394,15 @@ function App() {
                     Analytics
                   </Button>
                 )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={viewPatternRecognition}
+                  className="text-xs sm:text-sm"
+                >
+                  <Brain size={16} className="mr-1" />
+                  Patterns
+                </Button>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -487,6 +521,15 @@ function App() {
                 currentSession={safeSessionData}
                 onClose={() => updateSessionData({ phase: 'welcome' })}
                 onExport={exportAnalytics}
+              />
+            </PhaseErrorBoundary>
+          )}
+
+          {safeSessionData.phase === 'pattern-recognition' && (
+            <PhaseErrorBoundary phase="Pattern Recognition" onReset={resetSession}>
+              <PatternRecognitionDashboard 
+                currentSession={safeSessionData}
+                onClose={() => updateSessionData({ phase: 'welcome' })}
               />
             </PhaseErrorBoundary>
           )}

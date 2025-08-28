@@ -1,6 +1,6 @@
 import { AIAnalysisResult, ManipulationTactic } from '../services/aiAnalyzer'
 
-export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard'
+export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard' | 'pattern-recognition'
 
 export interface Message {
   id: string
@@ -25,6 +25,14 @@ export interface SessionData {
   participants?: SessionParticipant[]
   isMultiplayer?: boolean
   sessionId?: string
+  patternAnalysis?: PatternAnalysisResult
+}
+
+export interface PatternAnalysisResult {
+  detectedPatterns: string[]
+  severity: 'low' | 'medium' | 'high'
+  recommendations: string[]
+  analyzedAt: number
 }
 
 export interface SessionParticipant {
@@ -74,7 +82,8 @@ export const PHASE_PROGRESS: Record<SessionPhase, number> = {
   'summary': 100,
   'analytics': 100,
   'history': 100,
-  'couples-dashboard': 100
+  'couples-dashboard': 100,
+  'pattern-recognition': 100
 }
 
 export const PHASE_NAMES: Record<SessionPhase, string> = {
@@ -87,5 +96,6 @@ export const PHASE_NAMES: Record<SessionPhase, string> = {
   'summary': 'Battle Report',
   'analytics': 'Analytics Dashboard',
   'history': 'Session History',
-  'couples-dashboard': 'Couples Dashboard'
+  'couples-dashboard': 'Couples Dashboard',
+  'pattern-recognition': 'Pattern Recognition'
 }

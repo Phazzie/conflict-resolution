@@ -8,6 +8,7 @@ import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb } from '
 import { PhaseProps, Message } from '../types/session'
 import { validateMessageInput } from '../utils/validation'
 import { aiAnalyzer, type AIAnalysisResult, type ConversationContext } from '../services/aiAnalyzer'
+import { patternRecognitionService } from '../services/patternRecognition'
 import SessionPatternInsights from './SessionPatternInsights'
 
 function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
@@ -97,6 +98,26 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
             messages: [...updatedMessages, aiMessage] 
           })
         }, 1000)
+      }
+
+      // Run pattern analysis on updated session data
+      try {
+        const updatedSessionData = { ...sessionData, messages: updatedMessages }
+        const patternAnalysis = await patternRecognitionService.analyzeSession(updatedSessionData)
+        
+        // Update session with pattern analysis if significant patterns detected
+        if (patternAnalysis.patterns.length > 0) {
+          updateSessionData({
+            patternAnalysis: {
+              detectedPatterns: patternAnalysis.patterns.map(p => p.description),
+              severity: patternAnalysis.riskLevel,
+              recommendations: patternAnalysis.recommendations,
+              analyzedAt: Date.now()
+            }
+          })
+        }
+      } catch (patternError) {
+        console.error('Pattern analysis failed:', patternError)
       }
     } catch (error) {
       console.error('Failed to send message:', error)
@@ -368,6 +389,58 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
       {sessionData.messages.length > 3 && (
         <div className="mt-6">
           <SessionPatternInsights currentSession={sessionData} />
+        </div>
+      )}
+
+      {/* Real-time Pattern Detection */}
+      {sessionData.patternAnalysis && sessionData.patternAnalysis.detectedPatterns.length > 0 && (
+        <div className="mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Brain size={18} />
+                Pattern Detection Alert
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Alert className={
+                sessionData.patternAnalysis.severity === 'high' ? 'border-destructive bg-destructive/5' :
+                sessionData.patternAnalysis.severity === 'medium' ? 'border-yellow-500 bg-yellow-500/5' :
+                'border-green-500 bg-green-500/5'
+              }>
+                <Brain size={16} />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <div className="font-medium">
+                      Detected {sessionData.patternAnalysis.detectedPatterns.length} relationship pattern(s) 
+                      <Badge variant="outline" className="ml-2">
+                        {sessionData.patternAnalysis.severity} severity
+                      </Badge>
+                    </div>
+                    <ul className="text-sm space-y-1">
+                      {sessionData.patternAnalysis.detectedPatterns.slice(0, 3).map((pattern, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <ArrowRight size={12} className="mt-0.5 flex-shrink-0" />
+                          {pattern}
+                        </li>
+                      ))}
+                    </ul>
+                    {sessionData.patternAnalysis.recommendations.length > 0 && (
+                      <div className="pt-2 mt-2 border-t">
+                        <div className="text-sm font-medium mb-1 flex items-center gap-1">
+                          <Lightbulb size={12} />
+                          Quick suggestion:
+                        </div>
+                        <div className="text-sm text-blue-600">
+                          {sessionData.patternAnalysis.recommendations[0]}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
