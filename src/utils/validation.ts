@@ -39,61 +39,82 @@ export function sanitizeObject<T extends Record<string, any>>(obj: T): T {
 }
 
 /**
- * Enhanced session data validation with detailed error reporting
+ * Enhanced session data validation with human-friendly error messages
  */
 export function validateSessionData(data: any): { isValid: boolean; error?: string; warnings?: string[] } {
   const warnings: string[] = []
   
   if (!data || typeof data !== 'object') {
-    return { isValid: false, error: 'Session data is corrupted or missing' }
+    return { 
+      isValid: false, 
+      error: 'Your session data got scrambled. This usually happens if your browser storage got corrupted.' 
+    }
   }
 
-  const validPhases: SessionPhase[] = ['welcome', 'context-selection', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary', 'analytics', 'history', 'couples-dashboard', 'pattern-recognition', 'ml-insights']
+  const validPhases: SessionPhase[] = ['welcome', 'ai-preferences', 'context-selection', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary', 'analytics', 'history', 'couples-dashboard', 'pattern-recognition', 'ml-insights']
   
   if (!data.phase || !validPhases.includes(data.phase)) {
-    return { isValid: false, error: `Invalid session phase: ${data.phase}` }
+    return { 
+      isValid: false, 
+      error: `The app got confused about where you are in the process. Last known phase: ${data.phase || 'unknown'}` 
+    }
   }
 
   // Validate conflict context
   const validContexts: ConflictContext[] = ['relationship', 'workplace', 'family']
   if (data.conflictContext && !validContexts.includes(data.conflictContext)) {
-    warnings.push(`Unknown conflict context: ${data.conflictContext}`)
+    warnings.push(`Unfamiliar conflict type: ${data.conflictContext} (this might cause issues)`)
   }
 
   // Check for required timestamps
   if (typeof data.sessionStarted !== 'number' || data.sessionStarted <= 0) {
-    warnings.push('Session timestamp is invalid or missing')
+    warnings.push('Session timing data is missing (progress tracking may be affected)')
   }
 
-  // Phase-specific validation with more detailed checks
+  // Phase-specific validation with human-friendly error messages
   switch (data.phase) {
     case 'issue-agreement':
       if (data.phase === 'issue-agreement' && !data.conflictContext) {
-        return { isValid: false, error: 'Issue agreement phase requires conflict context selection' }
+        return { 
+          isValid: false, 
+          error: 'You need to select what type of conflict this is before agreeing on the specific issue.' 
+        }
       }
       break
 
     case 'steel-manning':
       if (!data.agreedIssue || data.agreedIssue.length < 10) {
-        return { isValid: false, error: 'Cannot be in steel-manning phase without a properly agreed issue (min 10 chars)' }
+        return { 
+          isValid: false, 
+          error: 'You need to agree on what you\'re actually fighting about before trying to understand each other.' 
+        }
       }
       break
 
     case 'statement-locking':
       if (!data.playerOneSteelMan || !data.playerTwoSteelMan) {
-        return { isValid: false, error: 'Cannot be in statement-locking without completed steel-manning from both players' }
+        return { 
+          isValid: false, 
+          error: 'Both people need to prove they understand each other before locking in their positions.' 
+        }
       }
       if (data.playerOneSteelMan.length < 20 || data.playerTwoSteelMan.length < 20) {
-        warnings.push('Steel-manning statements seem unusually short')
+        warnings.push('The understanding statements seem pretty short - you might want to be more thorough')
       }
       break
 
     case 'discussion':
       if (!data.playerOneStatement || !data.playerTwoStatement) {
-        return { isValid: false, error: 'Cannot be in discussion without locked statements from both players' }
+        return { 
+          isValid: false, 
+          error: 'You need locked statements from both people before starting the actual discussion.' 
+        }
       }
       if (!Array.isArray(data.messages)) {
-        return { isValid: false, error: 'Discussion phase requires valid message array' }
+        return { 
+          isValid: false, 
+          error: 'The conversation history got corrupted somehow.' 
+        }
       }
       break
 

@@ -119,18 +119,70 @@ export function useMultiplayerSession(
   }, [currentPlayer, updateSessionData])
 
   const joinSession = useCallback(async (sessionId: string): Promise<boolean> => {
-    // TODO: Implement actual session joining logic
-    // For now, simulate joining
-    updateSessionData({
-      isMultiplayer: true,
-      sessionId,
-      participants: [
-        { playerId: 'player1', isOnline: true, lastSeen: Date.now(), isTyping: false },
-        { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
-      ]
-    })
-    return true
-  }, [updateSessionData])
+    try {
+      // Validate session ID format
+      if (!sessionId || !sessionId.match(/^session-\d+-[a-z0-9]{6}$/)) {
+        console.error('Invalid session ID format')
+        return false
+      }
+
+      // Try to load existing session data from the session ID
+      const sessionKey = `mixitfixit-shared-${sessionId}`
+      const existingSessionData = localStorage.getItem(sessionKey)
+      
+      if (existingSessionData) {
+        try {
+          const sharedSession = JSON.parse(existingSessionData)
+          // Merge with current session, preserving existing progress
+          updateSessionData({
+            ...sharedSession,
+            isMultiplayer: true,
+            sessionId,
+            participants: [
+              ...(sharedSession.participants || []),
+              { playerId: currentPlayer, isOnline: true, lastSeen: Date.now(), isTyping: false }
+            ].filter((p, index, arr) => 
+              // Remove duplicates based on playerId
+              arr.findIndex(participant => participant.playerId === p.playerId) === index
+            )
+          })
+          console.log('Successfully joined existing session:', sessionId)
+          return true
+        } catch (parseError) {
+          console.error('Failed to parse existing session data:', parseError)
+        }
+      }
+
+      // If no existing session, create new shared session
+      const newSharedSession = {
+        phase: 'welcome' as const,
+        conflictContext: 'relationship' as const,
+        agreedIssue: '',
+        playerOneSteelMan: '',
+        playerTwoSteelMan: '',
+        playerOneStatement: '',
+        playerTwoStatement: '',
+        messages: [],
+        proposedResolution: '',
+        finalResolution: '',
+        sessionStarted: Date.now(),
+        isMultiplayer: true,
+        sessionId,
+        participants: [
+          { playerId: currentPlayer, isOnline: true, lastSeen: Date.now(), isTyping: false }
+        ]
+      }
+      
+      localStorage.setItem(sessionKey, JSON.stringify(newSharedSession))
+      updateSessionData(newSharedSession)
+      
+      console.log('Created new shared session:', sessionId)
+      return true
+    } catch (error) {
+      console.error('Failed to join session:', error)
+      return false
+    }
+  }, [currentPlayer, updateSessionData])
 
   return {
     enableMultiplayer,

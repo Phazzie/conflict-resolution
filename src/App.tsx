@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense, lazy } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,14 +22,30 @@ import StatementLocking from './components/StatementLocking'
 import DiscussionPhase from './components/DiscussionPhase'
 import ResolutionPhase from './components/ResolutionPhase'
 import SessionSummary from './components/SessionSummary'
-import AnalyticsDashboard from './components/AnalyticsDashboard'
 import SessionSharing from './components/SessionSharing'
-import SessionHistoryDashboard from './components/SessionHistoryDashboard'
-import CouplesDashboard from './components/CouplesDashboard'
-import PatternRecognitionDashboard from './components/PatternRecognitionDashboard'
-import MLInsightsDashboard from './components/MLInsightsDashboard'
 import AIPreferencesSettings from './components/AIPreferencesSettings'
 import AIPersonalityTesting from './components/AIPersonalityTesting'
+
+// Lazy load heavy dashboard components to improve initial load time
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'))
+const SessionHistoryDashboard = lazy(() => import('./components/SessionHistoryDashboard'))
+const CouplesDashboard = lazy(() => import('./components/CouplesDashboard'))
+const PatternRecognitionDashboard = lazy(() => import('./components/PatternRecognitionDashboard'))
+const MLInsightsDashboard = lazy(() => import('./components/MLInsightsDashboard'))
+
+// Loading component for lazy-loaded features
+const DashboardLoader = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <Card className="max-w-md mx-auto">
+      <CardContent className="flex items-center gap-3 p-6">
+        <CircleNotch size={24} className="animate-spin text-primary" />
+        <p className="text-muted-foreground">
+          Loading advanced features...
+        </p>
+      </CardContent>
+    </Card>
+  </div>
+)
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -136,17 +152,57 @@ function App() {
   }
 
   const joinSession = async (sessionId: string): Promise<boolean> => {
-    // TODO: Implement actual session joining logic
-    // For now, simulate joining
-    updateSessionData({
-      isMultiplayer: true,
-      sessionId,
-      participants: [
-        { playerId: 'player1', isOnline: true, lastSeen: Date.now(), isTyping: false },
-        { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
-      ]
-    })
-    return true
+    try {
+      // Validate session ID format
+      if (!sessionId || !sessionId.match(/^session-\d+-[a-z0-9]{6}$/)) {
+        console.error('Invalid session ID format')
+        return false
+      }
+
+      // Try to load existing session data from the session ID
+      // In a real implementation, this would be a server call
+      const sessionKey = `mixitfixit-shared-${sessionId}`
+      const existingSessionData = localStorage.getItem(sessionKey)
+      
+      if (existingSessionData) {
+        try {
+          const sharedSession = JSON.parse(existingSessionData)
+          // Merge with current session, preserving existing progress
+          updateSessionData({
+            ...sharedSession,
+            isMultiplayer: true,
+            sessionId,
+            participants: [
+              { playerId: 'player1', isOnline: true, lastSeen: Date.now(), isTyping: false },
+              { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
+            ]
+          })
+          console.log('Successfully joined existing session:', sessionId)
+          return true
+        } catch (parseError) {
+          console.error('Failed to parse existing session data:', parseError)
+        }
+      }
+
+      // If no existing session, create new shared session
+      const newSharedSession = {
+        ...safeSessionData,
+        isMultiplayer: true,
+        sessionId,
+        participants: [
+          { playerId: currentPlayer, isOnline: true, lastSeen: Date.now(), isTyping: false }
+        ]
+      }
+      
+      localStorage.setItem(sessionKey, JSON.stringify(newSharedSession))
+      updateSessionData(newSharedSession)
+      
+      console.log('Created new shared session:', sessionId)
+      return true
+    } catch (error) {
+      console.error('Failed to join session:', error)
+      return false
+    }
   }
 
   const viewAnalytics = useCallback(async () => {
@@ -581,45 +637,55 @@ function App() {
 
           {safeSessionData.phase === 'analytics' && (
             <PhaseErrorBoundary phase="Analytics" onReset={resetSession}>
-              <AnalyticsDashboard onExport={exportAnalytics} />
+              <Suspense fallback={<DashboardLoader />}>
+                <AnalyticsDashboard onExport={exportAnalytics} />
+              </Suspense>
             </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'history' && (
             <PhaseErrorBoundary phase="Session History" onReset={resetSession}>
-              <SessionHistoryDashboard 
-                currentSession={safeSessionData}
-                onClose={() => updateSessionData({ phase: 'welcome' })}
-                onExport={exportAnalytics}
-              />
+              <Suspense fallback={<DashboardLoader />}>
+                <SessionHistoryDashboard 
+                  currentSession={safeSessionData}
+                  onClose={() => updateSessionData({ phase: 'welcome' })}
+                  onExport={exportAnalytics}
+                />
+              </Suspense>
             </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'couples-dashboard' && (
             <PhaseErrorBoundary phase="Couples Dashboard" onReset={resetSession}>
-              <CouplesDashboard 
-                currentSession={safeSessionData}
-                onClose={() => updateSessionData({ phase: 'welcome' })}
-                onExport={exportAnalytics}
-              />
+              <Suspense fallback={<DashboardLoader />}>
+                <CouplesDashboard 
+                  currentSession={safeSessionData}
+                  onClose={() => updateSessionData({ phase: 'welcome' })}
+                  onExport={exportAnalytics}
+                />
+              </Suspense>
             </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'pattern-recognition' && (
             <PhaseErrorBoundary phase="Pattern Recognition" onReset={resetSession}>
-              <PatternRecognitionDashboard 
-                currentSession={safeSessionData}
-                onClose={() => updateSessionData({ phase: 'welcome' })}
-              />
+              <Suspense fallback={<DashboardLoader />}>
+                <PatternRecognitionDashboard 
+                  currentSession={safeSessionData}
+                  onClose={() => updateSessionData({ phase: 'welcome' })}
+                />
+              </Suspense>
             </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'ml-insights' && (
             <PhaseErrorBoundary phase="ML Insights" onReset={resetSession}>
-              <MLInsightsDashboard 
-                onClose={() => updateSessionData({ phase: 'welcome' })}
-                onExport={exportAnalytics}
-              />
+              <Suspense fallback={<DashboardLoader />}>
+                <MLInsightsDashboard 
+                  onClose={() => updateSessionData({ phase: 'welcome' })}
+                  onExport={exportAnalytics}
+                />
+              </Suspense>
             </PhaseErrorBoundary>
           )}
 

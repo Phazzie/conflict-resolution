@@ -79,10 +79,48 @@ export default function MobileDiscussionInterface({
     }
   }
 
-  const handleVoiceToggle = () => {
-    // Placeholder for future voice recognition implementation
-    setIsVoiceRecording(!isVoiceRecording)
-    // TODO: Implement actual voice recording
+  const handleVoiceToggle = async () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Voice recognition is not supported in your browser. Please type your message instead.')
+      return
+    }
+
+    try {
+      if (!isVoiceRecording) {
+        // Start voice recognition
+        const recognition = new ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)()
+        recognition.continuous = false
+        recognition.interimResults = false
+        recognition.lang = 'en-US'
+
+        recognition.onstart = () => {
+          setIsVoiceRecording(true)
+        }
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript
+          onMessageChange(currentMessage + (currentMessage ? ' ' : '') + transcript)
+          setIsVoiceRecording(false)
+        }
+
+        recognition.onerror = () => {
+          setIsVoiceRecording(false)
+          alert('Voice recognition error. Please try typing instead.')
+        }
+
+        recognition.onend = () => {
+          setIsVoiceRecording(false)
+        }
+
+        recognition.start()
+      } else {
+        // Stop recording (browser will handle this automatically)
+        setIsVoiceRecording(false)
+      }
+    } catch (error) {
+      setIsVoiceRecording(false)
+      alert('Voice recognition failed. Please type your message instead.')
+    }
   }
 
   const scrollToBottom = () => {
@@ -263,7 +301,7 @@ export default function MobileDiscussionInterface({
               size="sm"
               className="h-10 w-10 p-0 flex-shrink-0"
               onClick={handleVoiceToggle}
-              disabled // TODO: Enable when voice recognition is implemented
+              disabled={isLoading}
             >
               {isVoiceRecording ? (
                 <MicrophoneSlash size={16} className="text-red-500" />
