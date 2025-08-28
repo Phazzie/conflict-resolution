@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb, ThumbsUp, ThumbsDown, TrendUp } from '@phosphor-icons/react'
 import { PhaseProps, Message } from '../types/session'
 import { validateMessageInput } from '../utils/validation'
-import { aiAnalyzer, type AIAnalysisResult, type ConversationContext } from '../services/aiAnalyzer'
+import { unifiedAIService, type AIAnalysisResult, type ConversationContext } from '../services/aiServiceUnified'
 import { patternRecognitionService } from '../services/patternRecognition'
 import { machineLearningService, PatternPrediction } from '../services/machineLearning'
 import SessionPatternInsights from './SessionPatternInsights'
@@ -70,7 +70,7 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
       }
       
       // Get AI analysis for the message
-      const aiAnalysis = await aiAnalyzer.analyzeMessage(analysisContext)
+      const aiAnalysis = await unifiedAIService.analyzeMessage(messageContent, analysisContext)
 
       const newMessage: Message = {
         id: Date.now().toString(),

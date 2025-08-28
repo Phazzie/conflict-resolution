@@ -28,6 +28,8 @@ import SessionHistoryDashboard from './components/SessionHistoryDashboard'
 import CouplesDashboard from './components/CouplesDashboard'
 import PatternRecognitionDashboard from './components/PatternRecognitionDashboard'
 import MLInsightsDashboard from './components/MLInsightsDashboard'
+import AIPreferencesSettings from './components/AIPreferencesSettings'
+import AIPersonalityTesting from './components/AIPersonalityTesting'
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -95,7 +97,7 @@ function App() {
 
   const startSession = useCallback(() => {
     updateSessionData({ 
-      phase: 'context-selection',
+      phase: 'ai-preferences',
       sessionStarted: Date.now() 
     })
   }, [updateSessionData])
@@ -476,6 +478,41 @@ function App() {
         </header>
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+          {safeSessionData.phase === 'ai-preferences' && (
+            <PhaseErrorBoundary phase="AI Preferences" onReset={resetSession}>
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold mb-2">AI Personality Setup</h2>
+                  <p className="text-muted-foreground">
+                    Before we dive into conflict resolution, let's customize how the AI communicates with you.
+                    This is crucial for a successful session.
+                  </p>
+                </div>
+                
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <AIPersonalityTesting 
+                    onComplete={(personality) => {
+                      console.log('User chose AI personality:', personality)
+                      // Auto-continue after A/B test
+                      setTimeout(() => updateSessionData({ phase: 'context-selection' }), 2000)
+                    }}
+                  />
+                  <AIPreferencesSettings />
+                </div>
+                
+                <div className="flex justify-center pt-4">
+                  <Button 
+                    onClick={() => updateSessionData({ phase: 'context-selection' })}
+                    size="lg"
+                    variant="outline"
+                  >
+                    Skip to Context Selection
+                  </Button>
+                </div>
+              </div>
+            </PhaseErrorBoundary>
+          )}
+
           {safeSessionData.phase === 'context-selection' && (
             <PhaseErrorBoundary phase="Context Selection" onReset={resetSession}>
               <ConflictContextSelector 

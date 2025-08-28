@@ -1,6 +1,6 @@
-import { AIAnalysisResult, ManipulationTactic } from '../services/aiAnalyzer'
+import { AIAnalysisResult, ManipulationTactic } from '../services/aiServiceUnified'
 
-export type SessionPhase = 'welcome' | 'context-selection' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard' | 'pattern-recognition' | 'ml-insights'
+export type SessionPhase = 'welcome' | 'ai-preferences' | 'context-selection' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard' | 'pattern-recognition' | 'ml-insights'
 
 export interface Message {
   id: string
@@ -90,6 +90,7 @@ export interface PhaseProps {
 
 export const PHASE_PROGRESS: Record<SessionPhase, number> = {
   'welcome': 0,
+  'ai-preferences': 5,
   'context-selection': 10,
   'issue-agreement': 20,
   'steel-manning': 40,
@@ -106,6 +107,7 @@ export const PHASE_PROGRESS: Record<SessionPhase, number> = {
 
 export const PHASE_NAMES: Record<SessionPhase, string> = {
   'welcome': 'Digital Thunderdome Entry',
+  'ai-preferences': 'AI Personality Setup',
   'context-selection': 'Choose Your Arena',
   'issue-agreement': 'Issue Agreement',
   'steel-manning': 'Steel-Manning Phase',
