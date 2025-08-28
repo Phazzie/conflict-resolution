@@ -22,6 +22,7 @@ import SessionSummary from './components/SessionSummary'
 import AnalyticsDashboard from './components/AnalyticsDashboard'
 import SessionSharing from './components/SessionSharing'
 import SessionHistoryDashboard from './components/SessionHistoryDashboard'
+import CouplesDashboard from './components/CouplesDashboard'
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -153,6 +154,10 @@ function App() {
 
   const viewHistory = useCallback(() => {
     updateSessionData({ phase: 'history' })
+  }, [updateSessionData])
+
+  const viewCouplesDashboard = useCallback(() => {
+    updateSessionData({ phase: 'couples-dashboard' })
   }, [updateSessionData])
 
   const saveCurrentSession = useCallback(async (outcome: 'resolved' | 'stalemate' | 'abandoned') => {
@@ -298,11 +303,29 @@ function App() {
                       </p>
                     </div>
                   </div>
+                  <div className="flex items-center gap-3 p-3 border rounded-lg">
+                    <Heart size={16} className="sm:w-5 sm:h-5 text-pink-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm sm:text-base">Couples Dashboard</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        Track shared goals and relationship patterns over time
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t">
-                  <Button onClick={startSession} size="lg" className="w-full text-sm sm:text-base">
+                  <Button onClick={startSession} size="lg" className="w-full text-sm sm:text-base mb-3">
                     Enter the Digital Thunderdome
+                  </Button>
+                  <Button 
+                    onClick={() => updateSessionData({ phase: 'couples-dashboard' })} 
+                    variant="outline" 
+                    size="lg" 
+                    className="w-full text-sm sm:text-base"
+                  >
+                    <Heart size={16} className="mr-2" />
+                    View Couples Dashboard
                   </Button>
                   <p className="text-xs text-muted-foreground text-center mt-2">
                     You're {currentPlayer === 'player1' ? 'Player 1' : 'Player 2'} in this session
@@ -346,6 +369,15 @@ function App() {
                     Analytics
                   </Button>
                 )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={viewCouplesDashboard}
+                  className="text-xs sm:text-sm"
+                >
+                  <Heart size={16} className="mr-1" />
+                  Couples
+                </Button>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -442,6 +474,16 @@ function App() {
           {safeSessionData.phase === 'history' && (
             <PhaseErrorBoundary phase="Session History" onReset={resetSession}>
               <SessionHistoryDashboard 
+                currentSession={safeSessionData}
+                onClose={() => updateSessionData({ phase: 'welcome' })}
+                onExport={exportAnalytics}
+              />
+            </PhaseErrorBoundary>
+          )}
+
+          {safeSessionData.phase === 'couples-dashboard' && (
+            <PhaseErrorBoundary phase="Couples Dashboard" onReset={resetSession}>
+              <CouplesDashboard 
                 currentSession={safeSessionData}
                 onClose={() => updateSessionData({ phase: 'welcome' })}
                 onExport={exportAnalytics}
