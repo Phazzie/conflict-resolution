@@ -1,84 +1,36 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb } from '@phosphor-icons/react'
-import { PhaseProps, Message, ManipulationTactic, AIAnalysis } from '../types/session'
+import { PhaseProps, Message } from '../types/session'
 import { validateMessageInput } from '../utils/validation'
-import { aiAnalysisService } from '../services/aiAnalysis'
-import { realTimeSessionService } from '../services/realTimeSession'
+import { aiAnalyzer, type AIAnalysisResult, type ConversationContext } from '../services/aiAnalyzer'
 
-export default function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
+function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
   const [currentMessage, setCurrentMessage] = useState('')
   const [isAIAnalyzing, setIsAIAnalyzing] = useState(false)
-  const [isTyping, setIsTyping] = useState(false)
   const [validationError, setValidationError] = useState<string>('')
   const [aiInterventionCount, setAiInterventionCount] = useState(0)
-  const [participants, setParticipants] = useState<any[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const typingTimeoutRef = useRef<NodeJS.Timeout>()
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [sessionData.messages])
+  }, [sessionData.messages, scrollToBottom])
 
-  // Initialize real-time session if in multiplayer mode
-  useEffect(() => {
-    if (sessionData.isMultiplayer) {
-      realTimeSessionService.initializeSession(
-        sessionData.sessionId || 'default',
-        currentPlayer,
-        {
-          onSessionUpdate: (updates) => updateSessionData(updates),
-          onParticipantUpdate: setParticipants,
-          onError: (error) => console.error('Real-time error:', error),
-          onConnectionStatus: (connected) => console.log('Connection:', connected)
-        }
-      )
-    }
-
-    return () => {
-      realTimeSessionService.disconnect()
-    }
-  }, [sessionData.isMultiplayer, sessionData.sessionId, currentPlayer])
-
-  // Handle typing indicators
-  const handleInputChange = (value: string) => {
+  // Handle input changes
+  const handleInputChange = useCallback((value: string) => {
     setCurrentMessage(value)
     setValidationError('')
+  }, [])
 
-    if (sessionData.isMultiplayer) {
-      // Update typing status
-      if (!isTyping && value.length > 0) {
-        setIsTyping(true)
-        realTimeSessionService.updateTypingStatus(true)
-      } else if (isTyping && value.length === 0) {
-        setIsTyping(false)
-        realTimeSessionService.updateTypingStatus(false)
-      }
-
-      // Clear typing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current)
-      }
-
-      // Set new timeout to clear typing status
-      if (value.length > 0) {
-        typingTimeoutRef.current = setTimeout(() => {
-          setIsTyping(false)
-          realTimeSessionService.updateTypingStatus(false)
-        }, 3000)
-      }
-    }
-  }
-
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     const validation = validateMessageInput(currentMessage)
     if (!validation.isValid) {
       setValidationError(validation.error || 'Invalid message')
@@ -92,19 +44,22 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
       // Create message with AI analysis
       const messageContent = currentMessage.trim()
       
+      // Prepare context for AI analysis
+      const analysisContext: ConversationContext = {
+        agreedIssue: sessionData.agreedIssue,
+        playerOneStatement: sessionData.playerOneStatement,
+        playerTwoStatement: sessionData.playerTwoStatement,
+        currentMessage: messageContent,
+        messageAuthor: currentPlayer,
+        previousMessages: sessionData.messages.map(m => ({
+          author: m.author,
+          content: m.content,
+          timestamp: m.timestamp
+        }))
+      }
+      
       // Get AI analysis for the message
-      const aiAnalysis = await aiAnalysisService.analyzeMessage(
-        messageContent,
-        {
-          previousMessages: sessionData.messages.map(m => m.content),
-          agreedIssue: sessionData.agreedIssue,
-          playerStatements: {
-            player1: sessionData.playerOneStatement,
-            player2: sessionData.playerTwoStatement
-          },
-          messageAuthor: currentPlayer
-        }
-      )
+      const aiAnalysis = await aiAnalyzer.analyzeMessage(analysisContext)
 
       const newMessage: Message = {
         id: Date.now().toString(),
@@ -116,46 +71,31 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
 
       const updatedMessages = [...sessionData.messages, newMessage]
       
-      // Update via real-time service if multiplayer, otherwise local update
-      if (sessionData.isMultiplayer) {
-        await realTimeSessionService.sendMessage(newMessage)
-      } else {
-        updateSessionData({ messages: updatedMessages })
+      // Update session data
+      updateSessionData({ messages: updatedMessages })
+      
+      // Increment AI intervention count if manipulation detected
+      if (aiAnalysis.hasManipulation) {
+        setAiInterventionCount(prev => prev + 1)
       }
-
+      
       setCurrentMessage('')
 
-      // Clear typing status
-      if (isTyping) {
-        setIsTyping(false)
-        realTimeSessionService.updateTypingStatus(false)
-      }
-
-      // Generate AI intervention if needed
-      const interventionText = await aiAnalysisService.generateIntervention(
-        aiAnalysis.manipulationTactics,
-        aiAnalysis.emotionalTone,
-        messageContent
-      )
-      
-      if (interventionText) {
+      // Generate AI intervention if manipulation detected
+      if (aiAnalysis.hasManipulation && aiAnalysis.suggestion) {
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           author: 'ai',
-          content: interventionText,
-          timestamp: Date.now()
+          content: aiAnalysis.suggestion,
+          timestamp: Date.now() + 1
         }
         
-        // Send AI message
-        if (sessionData.isMultiplayer) {
-          await realTimeSessionService.sendMessage(aiMessage)
-        } else {
+        // Add AI message after a short delay for better UX
+        setTimeout(() => {
           updateSessionData({ 
             messages: [...updatedMessages, aiMessage] 
           })
-        }
-        
-        setAiInterventionCount(prev => prev + 1)
+        }, 1000)
       }
     } catch (error) {
       console.error('Failed to send message:', error)
@@ -163,63 +103,81 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
     } finally {
       setIsAIAnalyzing(false)
     }
-  }
+  }, [sessionData.agreedIssue, sessionData.playerOneStatement, sessionData.playerTwoStatement, sessionData.messages, currentPlayer, currentMessage, updateSessionData])
 
-  const proposeResolution = () => {
+  const proposeResolution = useCallback(() => {
     updateSessionData({ phase: 'resolution' })
-  }
+  }, [updateSessionData])
 
-  const formatTimestamp = (timestamp: number) => {
+  const formatTimestamp = useCallback((timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], { 
       hour: '2-digit', 
       minute: '2-digit' 
     })
-  }
+  }, [])
 
-  const renderManipulationTactics = (tactics: ManipulationTactic[]) => {
-    if (!tactics.length) return null
+  const renderManipulationTactics = useCallback((analysis: AIAnalysisResult) => {
+    if (!analysis.hasManipulation || !analysis.detectedTactics.length) return null
 
     return (
       <div className="mt-2 space-y-1">
-        {tactics.map((tactic, index) => (
+        {analysis.detectedTactics.map((tactic, index) => (
           <Alert key={index} className="py-2">
             <Warning size={16} />
             <AlertDescription className="text-xs">
-              <strong>Detected {tactic.type}:</strong> {tactic.description}
+              <strong>Detected {tactic.tactic}:</strong> {tactic.description}
+              {tactic.suggestion && (
+                <div className="mt-1 text-blue-600">
+                  <strong>Suggestion:</strong> {tactic.suggestion}
+                </div>
+              )}
             </AlertDescription>
           </Alert>
         ))}
       </div>
     )
-  }
+  }, [])
 
-  const renderAISuggestions = (analysis: AIAnalysis) => {
-    if (!analysis.suggestions.length) return null
+  const renderAISuggestions = useCallback((analysis: AIAnalysisResult) => {
+    if (!analysis.suggestion && !analysis.rephraseOption) return null
 
     return (
       <div className="mt-2 space-y-1">
-        {analysis.suggestions.slice(0, 2).map((suggestion, index) => (
-          <div key={index} className="text-xs bg-blue-50 border border-blue-200 rounded p-2">
+        {analysis.suggestion && (
+          <div className="text-xs bg-blue-50 border border-blue-200 rounded p-2">
             <div className="flex items-start gap-2">
-              <Lightbulb size={12} className="text-blue-600 mt-0.5 flex-shrink-0" />
+              <Brain size={12} className="text-blue-600 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-blue-900">{suggestion.content}</p>
-                <p className="text-blue-700 mt-1">{suggestion.rationale}</p>
+                <p className="text-blue-900 font-medium">AI Referee Says:</p>
+                <p className="text-blue-700">{analysis.suggestion}</p>
               </div>
             </div>
           </div>
-        ))}
+        )}
+        {analysis.rephraseOption && (
+          <div className="text-xs bg-green-50 border border-green-200 rounded p-2">
+            <div className="flex items-start gap-2">
+              <Lightbulb size={12} className="text-green-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-green-900 font-medium">Try this instead:</p>
+                <p className="text-green-700">{analysis.rephraseOption}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
-  }
+  }, [])
 
-  const getToxicityColor = (score: number) => {
-    if (score < 0.3) return 'text-green-600'
-    if (score < 0.6) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  const otherParticipantTyping = participants.find(p => p.playerId !== currentPlayer && p.isTyping)
+  const getToneColor = useCallback((tone: string) => {
+    switch (tone) {
+      case 'constructive': return 'text-green-600'
+      case 'defensive': return 'text-yellow-600'
+      case 'aggressive': return 'text-orange-600'
+      case 'manipulative': return 'text-red-600'
+      default: return 'text-gray-600'
+    }
+  }, [])
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -251,7 +209,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
 
           {/* Messages */}
           <div className="border rounded-lg">
-            <div className="h-96 overflow-y-auto p-4 space-y-3">
+            <div className="h-64 sm:h-96 overflow-y-auto p-4 space-y-3">
               {sessionData.messages.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
                   <ChatCircle size={48} className="mx-auto mb-2 opacity-50" />
@@ -277,17 +235,17 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
                         )}
                       </div>
                       
-                      <div className={`flex-1 max-w-sm ${
+                      <div className={`flex-1 max-w-xs sm:max-w-sm ${
                         message.author === currentPlayer ? 'text-right' : ''
                       }`}>
-                        <div className={`inline-block p-3 rounded-lg ${
+                        <div className={`inline-block p-3 rounded-lg text-sm sm:text-base ${
                           message.author === 'ai'
                             ? 'bg-purple-50 border border-purple-200'
                             : message.author === currentPlayer
                               ? 'bg-primary text-primary-foreground'
                               : 'bg-secondary'
                         }`}>
-                          <p className="text-sm">{message.content}</p>
+                          <p>{message.content}</p>
                         </div>
                         
                         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
@@ -297,14 +255,14 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
                           </Badge>
                           <span>{formatTimestamp(message.timestamp)}</span>
                           
-                          {/* Show toxicity score for user messages */}
+                          {/* Show tone for user messages */}
                           {message.author !== 'ai' && message.aiAnalysis && (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs ${getToxicityColor(message.aiAnalysis.toxicityScore)}`}
+                              className={`text-xs ${getToneColor(message.aiAnalysis.overallTone)}`}
                             >
                               <Brain size={10} className="mr-1" />
-                              {Math.round(message.aiAnalysis.toxicityScore * 100)}% tension
+                              {message.aiAnalysis.overallTone}
                             </Badge>
                           )}
                         </div>
@@ -313,7 +271,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
                         {message.author !== 'ai' && message.aiAnalysis && (
                           <div className={`mt-2 ${message.author === currentPlayer ? 'text-left' : ''}`}>
                             {/* Manipulation Tactics */}
-                            {renderManipulationTactics(message.aiAnalysis.manipulationTactics)}
+                            {renderManipulationTactics(message.aiAnalysis)}
                             
                             {/* AI Suggestions */}
                             {message.author === currentPlayer && renderAISuggestions(message.aiAnalysis)}
@@ -325,27 +283,6 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
                 ))
               )}
               
-              {/* Other participant typing indicator */}
-              {otherParticipantTyping && (
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center">
-                    <User size={16} />
-                  </div>
-                  <div className="flex-1 max-w-sm">
-                    <div className="inline-block p-3 rounded-lg bg-secondary">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0ms'}} />
-                          <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '150ms'}} />
-                          <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '300ms'}} />
-                        </div>
-                        <span className="text-xs text-muted-foreground">typing...</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* AI analyzing indicator */}
               {isAIAnalyzing && (
                 <div className="flex items-start gap-3">
@@ -367,7 +304,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
             </div>
 
             {/* Message Input */}
-            <div className="border-t p-4">
+            <div className="border-t p-3 sm:p-4">
               <div className="flex gap-2">
                 <div className="flex-1">
                   <Input
@@ -379,6 +316,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
                     }
                     onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                     disabled={isAIAnalyzing}
+                    className="text-base" // Prevents zoom on iOS
                   />
                   {validationError && (
                     <p className="text-sm text-destructive mt-1">{validationError}</p>
@@ -387,6 +325,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
                 <Button 
                   onClick={sendMessage}
                   disabled={!currentMessage.trim() || isAIAnalyzing}
+                  size="default" // Ensure adequate touch target
                 >
                   {isAIAnalyzing ? 'Analyzing...' : 'Send'}
                 </Button>
@@ -396,11 +335,11 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
 
           {/* Stats and Resolution */}
           <div className="pt-4 border-t">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
               <div className="text-sm text-muted-foreground">
                 Messages: {sessionData.messages.length} • AI Interventions: {aiInterventionCount}
               </div>
-              <Badge variant="outline">
+              <Badge variant="outline" className="text-xs">
                 {sessionData.messages.length < 6 ? 'Getting Started' : 
                  sessionData.messages.length < 20 ? 'Making Progress' : 
                  'Deep Discussion'}
@@ -414,7 +353,7 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
               <Button 
                 onClick={proposeResolution}
                 variant="default"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 w-full sm:w-auto"
               >
                 <ArrowRight size={16} />
                 Propose a Resolution
@@ -426,3 +365,5 @@ export default function DiscussionPhase({ sessionData, currentPlayer, updateSess
     </div>
   )
 }
+
+export default memo(DiscussionPhase)

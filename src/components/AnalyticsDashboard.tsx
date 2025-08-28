@@ -128,8 +128,8 @@ export default function AnalyticsDashboard({ onExport }: AnalyticsDashboardProps
             <option value="all">All Time</option>
           </select>
           
-          <Button variant=\"outline\" size=\"sm\" onClick={handleExport}>
-            <Download size={16} className=\"mr-2\" />
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download size={16} className="mr-2" />
             Export Data
           </Button>
         </div>

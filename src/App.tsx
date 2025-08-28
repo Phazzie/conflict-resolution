@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +9,7 @@ import { Lock, Users, ChatCircle, CircleNotch, ChartBar } from '@phosphor-icons/
 import { SessionData, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
 import { validateSessionData } from './utils/validation'
 import { clearSession } from './utils/sessionPersistence'
+import { analyticsService } from './services/analytics'
 import ErrorBoundary from './components/ErrorBoundary'
 import PhaseErrorBoundary from './components/PhaseErrorBoundary'
 import IssueAgreement from './components/IssueAgreement'
@@ -77,19 +78,19 @@ function App() {
     sessionStarted: Date.now()
   }
 
-  const updateSessionData = (updates: Partial<SessionData>) => {
+  const updateSessionData = useCallback((updates: Partial<SessionData>) => {
     const newSessionData = { ...safeSessionData, ...updates } as SessionData
     setSessionData(newSessionData)
-  }
+  }, [safeSessionData, setSessionData])
 
-  const startSession = () => {
+  const startSession = useCallback(() => {
     updateSessionData({ 
       phase: 'issue-agreement',
       sessionStarted: Date.now() 
     })
-  }
+  }, [updateSessionData])
 
-  const resetSession = () => {
+  const resetSession = useCallback(() => {
     localStorage.removeItem('mixitfixit-player-role')
     setValidationError('')
     clearSession() // Use enhanced session clearing
@@ -105,7 +106,7 @@ function App() {
       finalResolution: '',
       sessionStarted: Date.now()
     })
-  }
+  }, [setValidationError, setSessionData])
 
   const enableMultiplayer = () => {
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
@@ -135,11 +136,20 @@ function App() {
     return true
   }
 
-  const viewAnalytics = () => {
+  const viewAnalytics = useCallback(async () => {
+    // Generate analytics for current session before showing dashboard
+    if (sessionData && sessionData.messages.length > 0) {
+      try {
+        const analytics = await analyticsService.generateSessionAnalytics(sessionData)
+        console.log('Generated session analytics:', analytics)
+      } catch (error) {
+        console.error('Failed to generate session analytics:', error)
+      }
+    }
     updateSessionData({ phase: 'analytics' })
-  }
+  }, [sessionData, updateSessionData])
 
-  const exportAnalytics = (data: string) => {
+  const exportAnalytics = useCallback((data: string) => {
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -147,7 +157,7 @@ function App() {
     a.download = `mixitfixit-analytics-${Date.now()}.json`
     a.click()
     URL.revokeObjectURL(url)
-  }
+  }, [])
 
   // Check for session recovery
   const hasActiveSession = sessionData && sessionData.phase !== 'welcome' && 

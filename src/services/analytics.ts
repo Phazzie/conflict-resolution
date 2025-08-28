@@ -1,5 +1,5 @@
-import { SessionData, SessionAnalytics, ManipulationTactic, Message, SessionPhase } from '@/types/session'
-import { aiAnalysisService } from './aiAnalysis'
+import { SessionData, SessionAnalytics, Message, SessionPhase } from '@/types/session'
+import { ManipulationTactic } from '@/services/aiAnalyzer'
 
 /**
  * Comprehensive conflict resolution analytics service
@@ -27,7 +27,6 @@ export class AnalyticsService {
     const analytics: SessionAnalytics = {
       totalMessages: messages.length,
       manipulationDetected: this.extractManipulationTactics(messages),
-      emotionalProgression: this.extractEmotionalProgression(messages),
       aiInterventions: messages.filter(m => m.author === 'ai').length,
       successMetrics,
       timeSpent,
@@ -62,7 +61,7 @@ export class AnalyticsService {
     }
 
     // Calculate durations between phases
-    const phases: SessionPhase[] = ['welcome', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary']
+    const phases: SessionPhase[] = ['welcome', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary', 'analytics']
     
     for (let i = 0; i < phases.length - 1; i++) {
       const currentPhase = phases[i]
@@ -134,24 +133,33 @@ export class AnalyticsService {
       else if (player1Ratio < 0.3) dominantSpeaker = 'player2'
     }
 
-    // Find escalation points (high toxicity spikes)
+    // Find escalation points and breakthrough moments
     const escalationPoints: number[] = []
     const breakthroughMoments: number[] = []
+    const toneProgression: Array<{timestamp: number, tone: string}> = []
 
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i]
       const analysis = message.aiAnalysis
 
       if (analysis) {
-        // Escalation: high toxicity or severe manipulation
-        if (analysis.toxicityScore > 0.7 || analysis.manipulationTactics.some(t => t.severity === 'high')) {
+        // Track tone progression
+        toneProgression.push({
+          timestamp: message.timestamp,
+          tone: analysis.overallTone
+        })
+
+        // Escalation: aggressive or manipulative tone
+        if (analysis.overallTone === 'aggressive' || analysis.overallTone === 'manipulative' || analysis.hasManipulation) {
           escalationPoints.push(i)
         }
 
-        // Breakthrough: significant improvement after escalation
+        // Breakthrough: improvement to constructive after negative tone
         if (i > 0) {
           const prevAnalysis = messages[i - 1].aiAnalysis
-          if (prevAnalysis && prevAnalysis.toxicityScore > 0.6 && analysis.toxicityScore < 0.3) {
+          if (prevAnalysis && 
+              ['aggressive', 'manipulative'].includes(prevAnalysis.overallTone) && 
+              analysis.overallTone === 'constructive') {
             breakthroughMoments.push(i)
           }
         }
@@ -161,7 +169,8 @@ export class AnalyticsService {
     return {
       dominantSpeaker,
       escalationPoints,
-      breakthroughMoments
+      breakthroughMoments,
+      toneProgression
     }
   }
 
@@ -177,30 +186,30 @@ export class AnalyticsService {
     // Consensus reached if both parties contributed to discussion and resolution
     const consensusReached = issueResolved && messages.some(m => m.author === 'player1') && messages.some(m => m.author === 'player2')
 
-    // Communication improved if toxicity decreased over time
-    const analysesWithToxicity = messages
-      .map(m => m.aiAnalysis?.toxicityScore)
-      .filter((score): score is number => score !== undefined)
+    // Communication improved if tone improved over time (more constructive, less manipulative)
+    const toneAnalyses = messages
+      .map(m => m.aiAnalysis?.overallTone)
+      .filter((tone): tone is string => tone !== undefined)
 
     let communicationImproved = false
-    if (analysesWithToxicity.length >= 4) {
-      const firstHalf = analysesWithToxicity.slice(0, Math.floor(analysesWithToxicity.length / 2))
-      const secondHalf = analysesWithToxicity.slice(Math.floor(analysesWithToxicity.length / 2))
+    if (toneAnalyses.length >= 4) {
+      const firstHalf = toneAnalyses.slice(0, Math.floor(toneAnalyses.length / 2))
+      const secondHalf = toneAnalyses.slice(Math.floor(toneAnalyses.length / 2))
       
-      const firstAvg = firstHalf.reduce((sum, score) => sum + score, 0) / firstHalf.length
-      const secondAvg = secondHalf.reduce((sum, score) => sum + score, 0) / secondHalf.length
+      const firstConstructiveRatio = firstHalf.filter(tone => tone === 'constructive').length / firstHalf.length
+      const secondConstructiveRatio = secondHalf.filter(tone => tone === 'constructive').length / secondHalf.length
       
-      communicationImproved = secondAvg < firstAvg - 0.15 // Significant improvement
+      communicationImproved = secondConstructiveRatio > firstConstructiveRatio + 0.2 // Significant improvement
     }
 
-    // Toxicity reduced if final messages have lower toxicity than initial
-    const toxicityReduced = communicationImproved // Same calculation for now
+    // Manipulation reduced if fewer manipulation tactics detected in later messages
+    const manipulationReduced = communicationImproved // Similar metric for now
 
     return {
       issueResolved,
       consensusReached,
       communicationImproved,
-      toxicityReduced
+      manipulationReduced
     }
   }
 
@@ -209,20 +218,23 @@ export class AnalyticsService {
    */
   private extractManipulationTactics(messages: Message[]): ManipulationTactic[] {
     return messages
-      .flatMap(m => m.aiAnalysis?.manipulationTactics || [])
+      .flatMap(m => m.aiAnalysis?.detectedTactics || [])
       .filter((tactic, index, array) => 
-        // Deduplicate by type and evidence
-        array.findIndex(t => t.type === tactic.type && t.evidence === tactic.evidence) === index
+        // Deduplicate by tactic name and description
+        array.findIndex(t => t.tactic === tactic.tactic && t.description === tactic.description) === index
       )
   }
 
   /**
-   * Extract emotional progression from messages
+   * Extract tone progression from messages (simplified from emotional progression)
    */
-  private extractEmotionalProgression(messages: Message[]): SessionAnalytics['emotionalProgression'] {
+  private extractToneProgression(messages: Message[]): Array<{timestamp: number, tone: string}> {
     return messages
-      .map(m => m.aiAnalysis?.emotionalTone)
-      .filter((tone): tone is NonNullable<typeof tone> => tone !== undefined)
+      .map(m => ({ 
+        timestamp: m.timestamp, 
+        tone: m.aiAnalysis?.overallTone || 'unknown' 
+      }))
+      .filter(item => item.tone !== 'unknown')
   }
 
   /**
@@ -292,7 +304,7 @@ export class AnalyticsService {
     const tacticCounts = new Map<string, number>()
     sessions.forEach(session => {
       session.manipulationDetected.forEach(tactic => {
-        tacticCounts.set(tactic.type, (tacticCounts.get(tactic.type) || 0) + 1)
+        tacticCounts.set(tactic.tactic, (tacticCounts.get(tactic.tactic) || 0) + 1)
       })
     })
 
@@ -305,16 +317,16 @@ export class AnalyticsService {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
 
-    // Analyze emotional trends
-    const emotionCounts = new Map<string, number>()
+    // Analyze tone trends instead of emotional trends
+    const toneCounts = new Map<string, number>()
     sessions.forEach(session => {
-      session.emotionalProgression.forEach(emotion => {
-        emotionCounts.set(emotion.primary, (emotionCounts.get(emotion.primary) || 0) + 1)
+      session.patterns.toneProgression?.forEach(({ tone }) => {
+        toneCounts.set(tone, (toneCounts.get(tone) || 0) + 1)
       })
     })
 
-    const emotionalTrends = Array.from(emotionCounts.entries())
-      .map(([emotion, frequency]) => ({ emotion, frequency }))
+    const emotionalTrends = Array.from(toneCounts.entries())
+      .map(([tone, frequency]) => ({ emotion: tone, frequency }))
       .sort((a, b) => b.frequency - a.frequency)
 
     // Calculate improvement metrics
@@ -324,10 +336,10 @@ export class AnalyticsService {
       : 0
 
     const improvedSessions = sessions.filter(s => s.successMetrics.communicationImproved)
-    const averageToxicityReduction = improvedSessions.length / sessions.length
+    const averageManipulationReduction = improvedSessions.length / sessions.length
 
     const totalInterventions = sessions.reduce((sum, s) => sum + s.aiInterventions, 0)
-    const aiInterventionEffectiveness = totalInterventions > 0 ? averageToxicityReduction : 0
+    const aiInterventionEffectiveness = totalInterventions > 0 ? averageManipulationReduction : 0
 
     return {
       totalSessions: sessions.length,
@@ -336,7 +348,7 @@ export class AnalyticsService {
       emotionalTrends,
       improvementMetrics: {
         averageTimeToResolution,
-        averageToxicityReduction,
+        averageToxicityReduction: averageManipulationReduction,
         aiInterventionEffectiveness
       }
     }

@@ -1,3 +1,5 @@
+import { AIAnalysisResult, ManipulationTactic } from '../services/aiAnalyzer'
+
 export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics'
 
 export interface Message {
@@ -5,34 +7,7 @@ export interface Message {
   author: 'player1' | 'player2' | 'ai'
   content: string
   timestamp: number
-  aiAnalysis?: AIAnalysis
-}
-
-export interface AIAnalysis {
-  manipulationTactics: ManipulationTactic[]
-  toxicityScore: number
-  emotionalTone: EmotionalTone
-  suggestions: AISuggestion[]
-  confidence: number
-}
-
-export interface ManipulationTactic {
-  type: 'gaslighting' | 'blame-shifting' | 'stonewalling' | 'projection' | 'triangulation' | 'love-bombing' | 'guilt-tripping' | 'deflection' | 'minimizing' | 'dismissing'
-  severity: 'low' | 'medium' | 'high'
-  evidence: string
-  description: string
-}
-
-export interface EmotionalTone {
-  primary: 'angry' | 'defensive' | 'hurt' | 'frustrated' | 'dismissive' | 'caring' | 'confused' | 'hopeful'
-  intensity: number // 0-1
-  secondaryEmotions: string[]
-}
-
-export interface AISuggestion {
-  type: 'rephrase' | 'question' | 'reflection' | 'validation' | 'boundary'
-  content: string
-  rationale: string
+  aiAnalysis?: AIAnalysisResult
 }
 
 export interface SessionData {
@@ -62,13 +37,12 @@ export interface SessionParticipant {
 export interface SessionAnalytics {
   totalMessages: number
   manipulationDetected: ManipulationTactic[]
-  emotionalProgression: EmotionalTone[]
   aiInterventions: number
   successMetrics: {
     issueResolved: boolean
     consensusReached: boolean
     communicationImproved: boolean
-    toxicityReduced: boolean
+    manipulationReduced: boolean
   }
   timeSpent: {
     total: number
@@ -78,6 +52,7 @@ export interface SessionAnalytics {
     dominantSpeaker: PlayerRole | 'balanced'
     escalationPoints: number[]
     breakthroughMoments: number[]
+    toneProgression: Array<{timestamp: number, tone: string}>
   }
 }
 
