@@ -1,6 +1,6 @@
 import { AIAnalysisResult, ManipulationTactic } from '../services/aiAnalyzer'
 
-export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics'
+export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history'
 
 export interface Message {
   id: string
@@ -72,7 +72,8 @@ export const PHASE_PROGRESS: Record<SessionPhase, number> = {
   'discussion': 80,
   'resolution': 90,
   'summary': 100,
-  'analytics': 100
+  'analytics': 100,
+  'history': 100
 }
 
 export const PHASE_NAMES: Record<SessionPhase, string> = {
@@ -83,5 +84,6 @@ export const PHASE_NAMES: Record<SessionPhase, string> = {
   'discussion': 'Moderated Discussion', 
   'resolution': 'Resolution Negotiation',
   'summary': 'Battle Report',
-  'analytics': 'Analytics Dashboard'
+  'analytics': 'Analytics Dashboard',
+  'history': 'Session History'
 }

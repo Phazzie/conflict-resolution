@@ -8,6 +8,7 @@ import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb } from '
 import { PhaseProps, Message } from '../types/session'
 import { validateMessageInput } from '../utils/validation'
 import { aiAnalyzer, type AIAnalysisResult, type ConversationContext } from '../services/aiAnalyzer'
+import SessionPatternInsights from './SessionPatternInsights'
 
 function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
   const [currentMessage, setCurrentMessage] = useState('')
@@ -362,6 +363,13 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
           </div>
         </CardContent>
       </Card>
+
+      {/* Session Pattern Insights */}
+      {sessionData.messages.length > 3 && (
+        <div className="mt-6">
+          <SessionPatternInsights currentSession={sessionData} />
+        </div>
+      )}
     </div>
   )
 }

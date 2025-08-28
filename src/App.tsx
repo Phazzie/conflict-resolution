@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Toaster } from '@/components/ui/sonner'
-import { Lock, Users, ChatCircle, CircleNotch, ChartBar } from '@phosphor-icons/react'
+import { Lock, Users, ChatCircle, CircleNotch, ChartBar, History } from '@phosphor-icons/react'
 import { SessionData, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
 import { validateSessionData } from './utils/validation'
 import { clearSession } from './utils/sessionPersistence'
 import { analyticsService } from './services/analytics'
+import { sessionHistoryService } from './services/sessionHistory'
 import ErrorBoundary from './components/ErrorBoundary'
 import PhaseErrorBoundary from './components/PhaseErrorBoundary'
 import IssueAgreement from './components/IssueAgreement'
@@ -20,6 +21,7 @@ import ResolutionPhase from './components/ResolutionPhase'
 import SessionSummary from './components/SessionSummary'
 import AnalyticsDashboard from './components/AnalyticsDashboard'
 import SessionSharing from './components/SessionSharing'
+import SessionHistoryDashboard from './components/SessionHistoryDashboard'
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -148,6 +150,21 @@ function App() {
     }
     updateSessionData({ phase: 'analytics' })
   }, [sessionData, updateSessionData])
+
+  const viewHistory = useCallback(() => {
+    updateSessionData({ phase: 'history' })
+  }, [updateSessionData])
+
+  const saveCurrentSession = useCallback(async (outcome: 'resolved' | 'stalemate' | 'abandoned') => {
+    if (sessionData && (sessionData.agreedIssue || sessionData.messages.length > 0)) {
+      try {
+        await sessionHistoryService.saveSession(sessionData, outcome)
+        console.log(`Session saved to history with outcome: ${outcome}`)
+      } catch (error) {
+        console.error('Failed to save session to history:', error)
+      }
+    }
+  }, [sessionData])
 
   const exportAnalytics = useCallback((data: string) => {
     const blob = new Blob([data], { type: 'application/json' })
@@ -329,6 +346,15 @@ function App() {
                     Analytics
                   </Button>
                 )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={viewHistory}
+                  className="text-xs sm:text-sm"
+                >
+                  <History size={16} className="mr-1" />
+                  History
+                </Button>
                 <Button variant="outline" size="sm" onClick={resetSession} className="text-xs sm:text-sm">
                   Reset
                 </Button>
@@ -410,6 +436,16 @@ function App() {
           {safeSessionData.phase === 'analytics' && (
             <PhaseErrorBoundary phase="Analytics" onReset={resetSession}>
               <AnalyticsDashboard onExport={exportAnalytics} />
+            </PhaseErrorBoundary>
+          )}
+
+          {safeSessionData.phase === 'history' && (
+            <PhaseErrorBoundary phase="Session History" onReset={resetSession}>
+              <SessionHistoryDashboard 
+                currentSession={safeSessionData}
+                onClose={() => updateSessionData({ phase: 'welcome' })}
+                onExport={exportAnalytics}
+              />
             </PhaseErrorBoundary>
           )}
 
