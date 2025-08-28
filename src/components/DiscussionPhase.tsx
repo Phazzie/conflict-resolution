@@ -61,6 +61,7 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
         playerTwoStatement: sessionData.playerTwoStatement,
         currentMessage: messageContent,
         messageAuthor: currentPlayer,
+        conflictContext: sessionData.conflictContext,
         previousMessages: sessionData.messages.map(m => ({
           author: m.author,
           content: m.content,

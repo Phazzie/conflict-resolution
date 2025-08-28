@@ -1,6 +1,6 @@
 import { AIAnalysisResult, ManipulationTactic } from '../services/aiAnalyzer'
 
-export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard' | 'pattern-recognition' | 'ml-insights'
+export type SessionPhase = 'welcome' | 'context-selection' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard' | 'pattern-recognition' | 'ml-insights'
 
 export interface Message {
   id: string
@@ -13,8 +13,21 @@ export interface Message {
   mlEnhanced?: boolean // Whether message includes ML-enhanced suggestions
 }
 
+export type ConflictContext = 'relationship' | 'workplace' | 'family'
+
+export interface ConflictContextConfig {
+  type: ConflictContext
+  label: string
+  description: string
+  participantRoles: string[]
+  commonIssues: string[]
+  specialConsiderations: string[]
+  aiPromptModifiers: string[]
+}
+
 export interface SessionData {
   phase: SessionPhase
+  conflictContext: ConflictContext
   agreedIssue: string
   playerOneSteelMan: string
   playerTwoSteelMan: string
@@ -77,6 +90,7 @@ export interface PhaseProps {
 
 export const PHASE_PROGRESS: Record<SessionPhase, number> = {
   'welcome': 0,
+  'context-selection': 10,
   'issue-agreement': 20,
   'steel-manning': 40,
   'statement-locking': 60,
@@ -92,6 +106,7 @@ export const PHASE_PROGRESS: Record<SessionPhase, number> = {
 
 export const PHASE_NAMES: Record<SessionPhase, string> = {
   'welcome': 'Digital Thunderdome Entry',
+  'context-selection': 'Choose Your Arena',
   'issue-agreement': 'Issue Agreement',
   'steel-manning': 'Steel-Manning Phase',
   'statement-locking': 'Statement Locking',

@@ -22,6 +22,7 @@ export interface ConversationContext {
   playerTwoStatement: string
   currentMessage: string
   messageAuthor: 'player1' | 'player2'
+  conflictContext?: 'relationship' | 'workplace' | 'family'
   previousMessages: Array<{
     author: 'player1' | 'player2'
     content: string
@@ -84,21 +85,27 @@ class AIConversationAnalyzer {
       `- ${tactic}: ${this.getTacticDescription(tactic)}`
     ).join('\n')
 
+    // Get context-specific considerations
+    const contextInfo = this.getContextSpecificInfo(context.conflictContext)
+
     return spark.llmPrompt`
-You are an expert relationship communication analyst with a dry, witty personality. You've seen every manipulation tactic in the book and have zero patience for BS.
+You are an expert communication analyst with a dry, witty personality specialized in ${contextInfo.contextName} conflicts. You've seen every manipulation tactic in the book and have zero patience for BS.
 
 CONTEXT:
+- Conflict Type: ${contextInfo.contextName}
 - Agreed Issue: "${context.agreedIssue}"
 - Player 1 Statement: "${context.playerOneStatement}"
 - Player 2 Statement: "${context.playerTwoStatement}"
 - Current Message Author: ${context.messageAuthor}
 - Current Message: "${context.currentMessage}"
 
+${contextInfo.specialConsiderations}
+
 MANIPULATION TACTICS TO DETECT:
 ${tacticsDescription}
 
 ANALYSIS TASK:
-Analyze the current message for manipulation tactics, tone, and provide constructive feedback in a dry, intelligent, slightly sarcastic tone that matches the MixitFixit personality.
+Analyze the current message for manipulation tactics, tone, and provide constructive feedback in a dry, intelligent, slightly sarcastic tone that matches the MixitFixit personality. Consider the ${contextInfo.contextName} context when providing suggestions.
 
 RESPONSE FORMAT (JSON):
 {
@@ -108,14 +115,15 @@ RESPONSE FORMAT (JSON):
       "tactic": "string",
       "confidence": number (0-1),
       "description": "why this qualifies as this tactic",
-      "suggestion": "how to rephrase constructively"
+      "suggestion": "how to rephrase constructively for ${contextInfo.contextName} context"
     }
   ],
   "overallTone": "constructive" | "defensive" | "aggressive" | "manipulative",
-  "suggestion": "Main feedback with MixitFixit's dry wit",
-  "rephraseOption": "Optional: constructive rephrase of the message"
+  "suggestion": "Main feedback with MixitFixit's dry wit, tailored for ${contextInfo.contextName}",
+  "rephraseOption": "Optional: constructive rephrase appropriate for ${contextInfo.contextName}"
 }
 
+${contextInfo.responseGuidance}
 Keep suggestions witty but constructive. Think "helpful friend who's tired of your drama" rather than "therapist."
 `
   }
@@ -143,6 +151,46 @@ Keep suggestions witty but constructive. Think "helpful friend who's tired of yo
     }
     
     return descriptions[tactic] || 'Unhelpful communication pattern'
+  }
+
+  /**
+   * Get context-specific information for analysis
+   */
+  private getContextSpecificInfo(conflictContext?: 'relationship' | 'workplace' | 'family') {
+    const contextMap = {
+      relationship: {
+        contextName: 'romantic relationship',
+        specialConsiderations: `
+RELATIONSHIP CONTEXT CONSIDERATIONS:
+- Focus on emotional intimacy and trust building
+- Consider long-term partnership implications
+- Address underlying attachment patterns
+- Emphasize vulnerability and emotional safety`,
+        responseGuidance: `For relationship conflicts, emphasize emotional connection and trust. Suggest "I feel" statements and focus on relationship security.`
+      },
+      workplace: {
+        contextName: 'workplace',
+        specialConsiderations: `
+WORKPLACE CONTEXT CONSIDERATIONS:
+- Maintain professional boundaries and appropriate language
+- Consider organizational hierarchy and reporting structures
+- Focus on business outcomes and team effectiveness
+- Address performance and collaboration issues professionally`,
+        responseGuidance: `For workplace conflicts, keep language professional and focus on business outcomes. Suggest collaborative language and performance-focused solutions.`
+      },
+      family: {
+        contextName: 'family',
+        specialConsiderations: `
+FAMILY CONTEXT CONSIDERATIONS:
+- Consider long-term family relationships and history
+- Respect generational differences and cultural values
+- Address family roles and traditional expectations
+- Focus on preserving family bonds while resolving issues`,
+        responseGuidance: `For family conflicts, respect family dynamics and generational differences. Suggest solutions that preserve family bonds while addressing the issue.`
+      }
+    }
+
+    return contextMap[conflictContext || 'relationship']
   }
 
   /**

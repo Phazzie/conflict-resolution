@@ -16,6 +16,7 @@ import {
   Download
 } from '@phosphor-icons/react'
 import { analyticsService } from '@/services/analytics'
+import ContextSpecificInsights from './ContextSpecificInsights'
 
 interface AnalyticsDashboardProps {
   onExport?: (data: string) => void
@@ -281,6 +282,19 @@ export default function AnalyticsDashboard({ onExport }: AnalyticsDashboardProps
           )}
         </CardContent>
       </Card>
+
+      {/* Context-Specific Insights */}
+      <div className="col-span-full">
+        <ContextSpecificInsights 
+          conflictContext="relationship" // Default for now, should be dynamic
+          sessionAnalytics={{
+            totalMessages: dashboardData.totalSessions || 0,
+            manipulationDetected: [],
+            aiInterventions: improvementMetrics.aiInterventionEffectiveness || 0,
+            communicationImproved: improvementMetrics.averageToxicityReduction > 0.5
+          }}
+        />
+      </div>
 
       {/* Success Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

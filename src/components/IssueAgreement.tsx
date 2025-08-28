@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { ChatCircle, CheckCircle, X } from '@phosphor-icons/react'
+import { ChatCircle, CheckCircle, X, Heart, Briefcase, Users } from '@phosphor-icons/react'
 import { PhaseProps } from '../types/session'
 import { validateIssueInput } from '../utils/validation'
 import { SuccessCheckmark, LoadingSpinner } from '@/components/ui/loading'
+import { CONFLICT_CONTEXTS } from '../services/conflictContexts'
 
 const IssueAgreement = React.memo(({ sessionData, updateSessionData }: Omit<PhaseProps, 'currentPlayer'>) => {
   const [proposedIssue, setProposedIssue] = useState('')
@@ -59,20 +60,43 @@ const IssueAgreement = React.memo(({ sessionData, updateSessionData }: Omit<Phas
   }
 
   const hasProposedIssue = sessionData.agreedIssue.length > 0
+  const contextConfig = CONFLICT_CONTEXTS[sessionData.conflictContext || 'relationship']
+  
+  const contextIcons = {
+    relationship: Heart,
+    workplace: Briefcase,
+    family: Users
+  }
+  
+  const ContextIcon = contextIcons[sessionData.conflictContext || 'relationship']
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <ContextIcon size={24} className="text-primary" />
             <ChatCircle size={24} />
-            Issue Agreement Phase
+            Issue Agreement Phase - {contextConfig.label}
           </CardTitle>
           <p className="text-muted-foreground">
-            First, let's agree on what exactly you're fighting about. Revolutionary concept, I know.
+            First, let's agree on what exactly you're fighting about in this {contextConfig.label.toLowerCase()}. Revolutionary concept, I know.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Context-specific guidance */}
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <h4 className="font-medium mb-2">Common {contextConfig.label} Issues:</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {contextConfig.commonIssues.slice(0, 6).map((issue, index) => (
+                <div key={index} className="text-sm text-muted-foreground flex items-center gap-2">
+                  <CheckCircle size={12} className="text-primary" />
+                  {issue}
+                </div>
+              ))}
+            </div>
+          </div>
+
           {!hasProposedIssue ? (
             <div className="space-y-4">
               <div>
@@ -86,7 +110,7 @@ const IssueAgreement = React.memo(({ sessionData, updateSessionData }: Omit<Phas
                     setProposedIssue(e.target.value)
                     setValidationError('')
                   }}
-                  placeholder="Be specific. 'You're annoying' doesn't count as constructive..."
+                  placeholder={`Be specific about your ${contextConfig.label.toLowerCase()} issue. 'You're annoying' doesn't count as constructive...`}
                   className="min-h-24"
                   aria-describedby={validationError ? "issue-error" : undefined}
                   aria-invalid={!!validationError}

@@ -12,8 +12,10 @@ import { clearSession } from './utils/sessionPersistence'
 import { analyticsService } from './services/analytics'
 import { sessionHistoryService } from './services/sessionHistory'
 import { machineLearningService } from './services/machineLearning'
+import { CONFLICT_CONTEXTS } from './services/conflictContexts'
 import ErrorBoundary from './components/ErrorBoundary'
 import PhaseErrorBoundary from './components/PhaseErrorBoundary'
+import ConflictContextSelector from './components/ConflictContextSelector'
 import IssueAgreement from './components/IssueAgreement'
 import SteelManningPhase from './components/SteelManningPhase'
 import StatementLocking from './components/StatementLocking'
@@ -30,6 +32,7 @@ import MLInsightsDashboard from './components/MLInsightsDashboard'
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
     phase: 'welcome',
+    conflictContext: 'relationship',
     agreedIssue: '',
     playerOneSteelMan: '',
     playerTwoSteelMan: '',
@@ -73,6 +76,7 @@ function App() {
   // Ensure sessionData is always defined
   const safeSessionData = sessionData || {
     phase: 'welcome' as const,
+    conflictContext: 'relationship' as const,
     agreedIssue: '',
     playerOneSteelMan: '',
     playerTwoSteelMan: '',
@@ -91,7 +95,7 @@ function App() {
 
   const startSession = useCallback(() => {
     updateSessionData({ 
-      phase: 'issue-agreement',
+      phase: 'context-selection',
       sessionStarted: Date.now() 
     })
   }, [updateSessionData])
@@ -102,6 +106,7 @@ function App() {
     clearSession() // Use enhanced session clearing
     setSessionData({
       phase: 'welcome',
+      conflictContext: 'relationship',
       agreedIssue: '',
       playerOneSteelMan: '',
       playerTwoSteelMan: '',
@@ -265,12 +270,12 @@ function App() {
             <div className="text-center mb-8 sm:mb-12">
               <h1 className="text-2xl sm:text-4xl font-bold text-foreground mb-2 sm:mb-4">MixitFixit</h1>
               <p className="text-lg sm:text-xl text-muted-foreground mb-2">
-                Digital Thunderdome for Dysfunctional Relationships
+                Digital Thunderdome for All Your Conflicts
               </p>
               <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto px-4">
-                Welcome to the structured battleground where you're forced to listen, articulate, 
-                and maybe (just maybe) not be a complete asshat. No mudslinging until you 
-                actually agree on what you're fighting about.
+                Whether it's relationship drama, workplace tension, or family feuds - 
+                we've got the structured battleground where you're forced to listen, articulate, 
+                and maybe (just maybe) not be a complete asshat.
               </p>
             </div>
 
@@ -471,6 +476,15 @@ function App() {
         </header>
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+          {safeSessionData.phase === 'context-selection' && (
+            <PhaseErrorBoundary phase="Context Selection" onReset={resetSession}>
+              <ConflictContextSelector 
+                sessionData={safeSessionData}
+                updateSessionData={updateSessionData}
+              />
+            </PhaseErrorBoundary>
+          )}
+
           {safeSessionData.phase === 'issue-agreement' && (
             <PhaseErrorBoundary phase="Issue Agreement" onReset={resetSession}>
               <IssueAgreement 

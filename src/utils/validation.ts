@@ -1,4 +1,4 @@
-import { SessionData, SessionPhase } from '@/types/session'
+import { SessionData, SessionPhase, ConflictContext } from '@/types/session'
 
 /**
  * Comprehensive input sanitization to prevent XSS attacks
@@ -48,10 +48,16 @@ export function validateSessionData(data: any): { isValid: boolean; error?: stri
     return { isValid: false, error: 'Session data is corrupted or missing' }
   }
 
-  const validPhases: SessionPhase[] = ['welcome', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary']
+  const validPhases: SessionPhase[] = ['welcome', 'context-selection', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary', 'analytics', 'history', 'couples-dashboard', 'pattern-recognition', 'ml-insights']
   
   if (!data.phase || !validPhases.includes(data.phase)) {
     return { isValid: false, error: `Invalid session phase: ${data.phase}` }
+  }
+
+  // Validate conflict context
+  const validContexts: ConflictContext[] = ['relationship', 'workplace', 'family']
+  if (data.conflictContext && !validContexts.includes(data.conflictContext)) {
+    warnings.push(`Unknown conflict context: ${data.conflictContext}`)
   }
 
   // Check for required timestamps
@@ -61,6 +67,12 @@ export function validateSessionData(data: any): { isValid: boolean; error?: stri
 
   // Phase-specific validation with more detailed checks
   switch (data.phase) {
+    case 'issue-agreement':
+      if (data.phase === 'issue-agreement' && !data.conflictContext) {
+        return { isValid: false, error: 'Issue agreement phase requires conflict context selection' }
+      }
+      break
+
     case 'steel-manning':
       if (!data.agreedIssue || data.agreedIssue.length < 10) {
         return { isValid: false, error: 'Cannot be in steel-manning phase without a properly agreed issue (min 10 chars)' }

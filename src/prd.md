@@ -2,47 +2,67 @@
 
 ## Core Purpose & Success
 
-**Mission Statement**: MixitFixit forces dysfunctional couples to structure their conflicts, demonstrate mutual understanding, and reach accountable resolutions through AI-moderated discourse.
+**Mission Statement**: MixitFixit forces conflicted individuals to structure their disagreements, demonstrate mutual understanding, and reach accountable resolutions through AI-moderated discourse - whether in relationships, workplaces, or families.
 
 **Success Indicators**: 
 - Sessions that progress to locked resolutions (>60%)
 - Reduced AI interventions over multiple sessions (indicating improved communication)
 - User feedback indicating "less painful than our usual fights"
 - Measurable follow-through on agreed resolutions
+- Cross-context usage showing platform versatility
 
-**Experience Qualities**: Direct, Witty, Therapeutic
+**Experience Qualities**: Direct, Context-Aware, Therapeutically Effective
+
+## Market Expansion & Target Audiences
+
+**Primary Markets**:
+1. **Romantic Relationships**: Couples dealing with recurring communication issues and conflict patterns
+2. **Workplace Conflicts**: Team members, colleagues, and professional relationships needing structured resolution
+3. **Family Dynamics**: Parent-child, sibling, and extended family conflicts requiring sensitive handling
+
+**Market Size & Opportunity**:
+- Relationship counseling market: $4.2B globally
+- Corporate conflict resolution training: $2.8B annually  
+- Family therapy and mediation: $1.9B market
+- Total addressable market: $8.9B with significant overlap potential
 
 ## Project Classification & Approach
 
-**Complexity Level**: Light Application (multiple features with persistent state and AI integration)
+**Complexity Level**: Complex Application (multiple features with context-aware AI, cross-domain applicability, and adaptive learning)
 
-**Primary User Activity**: Interacting - structured conflict resolution with forced accountability
+**Primary User Activity**: Interacting - structured conflict resolution with context-specific guidance and forced accountability
 
 ## Thought Process for Feature Selection
 
-**Core Problem Analysis**: Couples get stuck in circular arguments because they never agree on what they're fighting about, don't understand each other's perspectives, and have no accountability for their stated positions.
+**Core Problem Analysis**: People across all relationship types get stuck in circular arguments because they never agree on what they're fighting about, don't understand each other's perspectives, and have no accountability for their stated positions. The dynamics vary significantly between romantic partners, workplace colleagues, and family members.
 
-**User Context**: Used during or immediately after relationship conflicts when emotions are high but both parties want to resolve things constructively rather than just "winning."
+**User Context**: Used during or immediately after conflicts when emotions are high but both parties want to resolve things constructively rather than just "winning." Context matters - workplace conflicts require professional boundaries, family conflicts need generational sensitivity, and romantic conflicts demand emotional intimacy.
 
-**Critical Path**: Issue Agreement → Steel-Manning → Statement Locking → AI-Moderated Discussion → Resolution Negotiation → Binding Agreement
+**Critical Path**: Context Selection → Issue Agreement → Steel-Manning → Statement Locking → AI-Moderated Discussion → Resolution Negotiation → Binding Agreement
 
 **Key Moments**: 
-1. The moment both parties accept the same issue definition
-2. Statement locking (point of no return for positions) 
-3. First AI intervention calling out toxic communication
-4. Mutual acceptance of final resolution
+1. Context selection that determines appropriate communication style
+2. The moment both parties accept the same issue definition
+3. Statement locking (point of no return for positions) 
+4. First context-aware AI intervention calling out inappropriate communication
+5. Mutual acceptance of context-appropriate final resolution
 
 ## Essential Features
 
-### Issue Agreement Logic
-- **What it does**: Forces iterative negotiation until both parties agree on the exact wording of the problem
-- **Why it matters**: Prevents arguing about different issues while thinking you're discussing the same thing
-- **Success criteria**: Both users click "Accept" on identical issue text
+### Context Selection System
+- **What it does**: Users choose between relationship, workplace, or family conflict contexts, each with tailored approaches
+- **Why it matters**: Different contexts require different communication styles, boundaries, and resolution approaches
+- **Success criteria**: Clear context selection with appropriate AI prompting and guidance adaptation
 
-### Steel-Manning Phase  
-- **What it does**: Requires each person to articulate the other's perspective accurately enough to earn approval
-- **Why it matters**: Prevents "you're not even listening" accusations and forces cognitive empathy
-- **Success criteria**: Both steel-man attempts are approved by the target person
+### Context-Aware Issue Agreement Logic
+- **What it does**: Forces iterative negotiation until both parties agree on the exact wording of the problem, with context-specific common issues suggested
+- **Why it matters**: Prevents arguing about different issues while thinking you're discussing the same thing
+- **Success criteria**: Both users click "Accept" on identical issue text appropriate to their context
+
+### Context-Sensitive Steel-Manning Phase  
+- **What it does**: Requires each person to articulate the other's perspective accurately enough to earn approval, with context-appropriate language expectations
+- **Why it matters**: Prevents "you're not even listening" accusations and forces cognitive empathy while respecting context boundaries
+- **Success criteria**: Both steel-man attempts are approved by the target person using context-appropriate criteria
 
 ### Statement Locking
 - **What it does**: Creates immutable, timestamped position statements that can't be edited or denied later
@@ -50,9 +70,14 @@
 - **Success criteria**: Both statements locked with clear "no take-backs" acknowledgment
 
 ### AI-Moderated Discussion
-- **What it does**: LLM-powered referee identifies toxic communication patterns and suggests constructive rephrasing
-- **Why it matters**: Provides neutral third-party perspective that spots manipulation tactics humans miss
-- **Success criteria**: Contextually relevant interventions that actually improve communication quality
+- **What it does**: LLM-powered referee identifies toxic communication patterns and suggests constructive rephrasing with context-aware guidance
+- **Why it matters**: Provides neutral third-party perspective that spots manipulation tactics humans miss, tailored to relationship type
+- **Success criteria**: Contextually relevant interventions that actually improve communication quality within appropriate boundaries
+
+### Context-Adaptive Analytics Dashboard  
+- **What it does**: Tracks patterns across different conflict types with context-specific metrics and insights
+- **Why it matters**: Understanding how communication patterns differ across contexts helps users improve broadly
+- **Success criteria**: Clear insights showing context-specific communication effectiveness and improvement areas
 
 ### Resolution Negotiation
 - **What it does**: Proposal/counter-proposal system requiring explicit mutual agreement before finalization  
