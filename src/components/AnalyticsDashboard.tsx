@@ -123,9 +123,9 @@ export default function AnalyticsDashboard({ onExport }: AnalyticsDashboardProps
             onChange={(e) => setSelectedTimeframe(e.target.value as typeof selectedTimeframe)}
             className="px-3 py-2 border rounded-md text-sm"
           >
-            <option value=\"week\">Last Week</option>
-            <option value=\"month\">Last Month</option>
-            <option value=\"all\">All Time</option>
+            <option value="week">Last Week</option>
+            <option value="month">Last Month</option>
+            <option value="all">All Time</option>
           </select>
           
           <Button variant=\"outline\" size=\"sm\" onClick={handleExport}>
