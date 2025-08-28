@@ -5,12 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Toaster } from '@/components/ui/sonner'
-import { Lock, Users, ChatCircle, CircleNotch, ChartBar, History, Heart, Brain } from '@phosphor-icons/react'
+import { Lock, Users, ChatCircle, CircleNotch, ChartBar, History, Heart, Brain, TrendUp } from '@phosphor-icons/react'
 import { SessionData, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
 import { validateSessionData } from './utils/validation'
 import { clearSession } from './utils/sessionPersistence'
 import { analyticsService } from './services/analytics'
 import { sessionHistoryService } from './services/sessionHistory'
+import { machineLearningService } from './services/machineLearning'
 import ErrorBoundary from './components/ErrorBoundary'
 import PhaseErrorBoundary from './components/PhaseErrorBoundary'
 import IssueAgreement from './components/IssueAgreement'
@@ -24,6 +25,7 @@ import SessionSharing from './components/SessionSharing'
 import SessionHistoryDashboard from './components/SessionHistoryDashboard'
 import CouplesDashboard from './components/CouplesDashboard'
 import PatternRecognitionDashboard from './components/PatternRecognitionDashboard'
+import MLInsightsDashboard from './components/MLInsightsDashboard'
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -165,13 +167,22 @@ function App() {
     updateSessionData({ phase: 'pattern-recognition' })
   }, [updateSessionData])
 
+  const viewMLInsights = useCallback(() => {
+    updateSessionData({ phase: 'ml-insights' })
+  }, [updateSessionData])
+
   const saveCurrentSession = useCallback(async (outcome: 'resolved' | 'stalemate' | 'abandoned') => {
     if (sessionData && (sessionData.agreedIssue || sessionData.messages.length > 0)) {
       try {
+        // Save to session history
         await sessionHistoryService.saveSession(sessionData, outcome)
         console.log(`Session saved to history with outcome: ${outcome}`)
+        
+        // Learn from session outcome in ML model
+        await machineLearningService.learnFromSessionOutcome(sessionData, outcome)
+        console.log(`ML model updated with session outcome: ${outcome}`)
       } catch (error) {
-        console.error('Failed to save session to history:', error)
+        console.error('Failed to save session or update ML model:', error)
       }
     }
   }, [sessionData])
@@ -311,9 +322,9 @@ function App() {
                   <div className="flex items-center gap-3 p-3 border rounded-lg">
                     <Brain size={16} className="sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                     <div className="min-w-0">
-                      <p className="font-medium text-sm sm:text-base">Pattern Recognition</p>
+                      <p className="font-medium text-sm sm:text-base">ML-Enhanced Pattern Detection</p>
                       <p className="text-xs sm:text-sm text-muted-foreground">
-                        AI-powered detection of recurring relationship dynamics
+                        Machine learning that improves accuracy through your feedback
                       </p>
                     </div>
                   </div>
@@ -350,6 +361,15 @@ function App() {
                     >
                       <Heart size={16} className="mr-2" />
                       Couples Dashboard
+                    </Button>
+                    <Button 
+                      onClick={() => updateSessionData({ phase: 'ml-insights' })} 
+                      variant="outline" 
+                      size="lg" 
+                      className="text-sm sm:text-base col-span-1 sm:col-span-2"
+                    >
+                      <TrendUp size={16} className="mr-2" />
+                      ML Insights & Training
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground text-center mt-2">
@@ -411,6 +431,15 @@ function App() {
                 >
                   <Heart size={16} className="mr-1" />
                   Couples
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={viewMLInsights}
+                  className="text-xs sm:text-sm"
+                >
+                  <TrendUp size={16} className="mr-1" />
+                  ML
                 </Button>
                 <Button 
                   variant="outline" 
@@ -530,6 +559,15 @@ function App() {
               <PatternRecognitionDashboard 
                 currentSession={safeSessionData}
                 onClose={() => updateSessionData({ phase: 'welcome' })}
+              />
+            </PhaseErrorBoundary>
+          )}
+
+          {safeSessionData.phase === 'ml-insights' && (
+            <PhaseErrorBoundary phase="ML Insights" onReset={resetSession}>
+              <MLInsightsDashboard 
+                onClose={() => updateSessionData({ phase: 'welcome' })}
+                onExport={exportAnalytics}
               />
             </PhaseErrorBoundary>
           )}

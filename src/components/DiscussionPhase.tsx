@@ -4,18 +4,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb } from '@phosphor-icons/react'
+import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb, ThumbsUp, ThumbsDown, TrendUp } from '@phosphor-icons/react'
 import { PhaseProps, Message } from '../types/session'
 import { validateMessageInput } from '../utils/validation'
 import { aiAnalyzer, type AIAnalysisResult, type ConversationContext } from '../services/aiAnalyzer'
 import { patternRecognitionService } from '../services/patternRecognition'
+import { machineLearningService, PatternPrediction } from '../services/machineLearning'
 import SessionPatternInsights from './SessionPatternInsights'
+import { toast } from 'sonner'
 
 function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
   const [currentMessage, setCurrentMessage] = useState('')
   const [isAIAnalyzing, setIsAIAnalyzing] = useState(false)
   const [validationError, setValidationError] = useState<string>('')
   const [aiInterventionCount, setAiInterventionCount] = useState(0)
+  const [mlPredictions, setMlPredictions] = useState<PatternPrediction[]>([])
+  const [showMLInsights, setShowMLInsights] = useState(false)
+  const [pendingFeedback, setPendingFeedback] = useState<{
+    messageIndex: number
+    predictions: PatternPrediction[]
+  } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = useCallback(() => {
@@ -71,25 +79,56 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
         aiAnalysis
       }
 
+      // Get ML-powered pattern predictions
+      const mlPredictions = await machineLearningService.predictPatterns(newMessage, {
+        sessionData,
+        messageIndex: sessionData.messages.length,
+        previousMessages: sessionData.messages
+      })
+
+      // Add detected patterns to the message
+      newMessage.detectedPatterns = mlPredictions.map(p => p.pattern)
+      newMessage.mlConfidence = mlPredictions.length > 0 ? Math.max(...mlPredictions.map(p => p.confidence)) : 0
+
       const updatedMessages = [...sessionData.messages, newMessage]
       
       // Update session data
       updateSessionData({ messages: updatedMessages })
       
+      // Store predictions for feedback
+      if (mlPredictions.length > 0) {
+        setPendingFeedback({
+          messageIndex: updatedMessages.length - 1,
+          predictions: mlPredictions
+        })
+        setMlPredictions(mlPredictions)
+      }
+      
       // Increment AI intervention count if manipulation detected
-      if (aiAnalysis.hasManipulation) {
+      if (aiAnalysis.hasManipulation || mlPredictions.length > 0) {
         setAiInterventionCount(prev => prev + 1)
       }
       
       setCurrentMessage('')
 
-      // Generate AI intervention if manipulation detected
-      if (aiAnalysis.hasManipulation && aiAnalysis.suggestion) {
+      // Generate AI intervention with ML-enhanced suggestions
+      if ((aiAnalysis.hasManipulation && aiAnalysis.suggestion) || mlPredictions.length > 0) {
+        let aiSuggestion = aiAnalysis.suggestion || ''
+        
+        // Enhance suggestion with ML predictions
+        if (mlPredictions.length > 0) {
+          const topPrediction = mlPredictions[0]
+          if (topPrediction.suggestedResponse) {
+            aiSuggestion = `${aiSuggestion}\n\nML-Enhanced Suggestion: ${topPrediction.suggestedResponse}`
+          }
+        }
+        
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
           author: 'ai',
-          content: aiAnalysis.suggestion,
-          timestamp: Date.now() + 1
+          content: aiSuggestion,
+          timestamp: Date.now() + 1,
+          mlEnhanced: mlPredictions.length > 0
         }
         
         // Add AI message after a short delay for better UX
@@ -130,6 +169,39 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
   const proposeResolution = useCallback(() => {
     updateSessionData({ phase: 'resolution' })
   }, [updateSessionData])
+
+  // Handle ML feedback
+  const handleMLFeedback = useCallback(async (
+    feedback: 'correct' | 'incorrect' | 'partial',
+    actualPatterns?: string[]
+  ) => {
+    if (!pendingFeedback) return
+    
+    try {
+      const message = sessionData.messages[pendingFeedback.messageIndex]
+      await machineLearningService.learnFromFeedback(
+        message,
+        pendingFeedback.predictions,
+        feedback,
+        actualPatterns
+      )
+      
+      toast.success(`ML model updated with your feedback!`)
+      setPendingFeedback(null)
+      setMlPredictions([])
+      
+      // Get updated model metrics
+      const metrics = machineLearningService.getModelMetrics()
+      console.log('Updated ML model metrics:', metrics)
+    } catch (error) {
+      console.error('Failed to provide ML feedback:', error)
+      toast.error('Failed to update ML model')
+    }
+  }, [pendingFeedback, sessionData.messages])
+
+  const toggleMLInsights = useCallback(() => {
+    setShowMLInsights(prev => !prev)
+  }, [])
 
   const formatTimestamp = useCallback((timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], { 
@@ -190,6 +262,113 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
       </div>
     )
   }, [])
+
+  // Render ML predictions for a message
+  const renderMLPredictions = useCallback((message: Message) => {
+    if (!message.detectedPatterns?.length) return null
+
+    return (
+      <div className="mt-2 space-y-1">
+        {message.detectedPatterns.map((pattern, index) => (
+          <div key={index} className="text-xs bg-purple-50 border border-purple-200 rounded p-2">
+            <div className="flex items-start gap-2">
+              <Brain size={12} className="text-purple-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-purple-900 font-medium">
+                    ML Detected: {pattern.replace('-', ' ')}
+                  </p>
+                  {message.mlConfidence && (
+                    <Badge variant="secondary" className="text-xs">
+                      {Math.round(message.mlConfidence * 100)}%
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-purple-700 text-xs">
+                  Machine learning analysis based on previous patterns
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }, [])
+
+  // Render feedback request for ML predictions
+  const renderMLFeedback = useCallback(() => {
+    if (!pendingFeedback || mlPredictions.length === 0) return null
+
+    return (
+      <Card className="border-purple-200 bg-purple-50/50">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <TrendUp size={20} className="text-purple-600 flex-shrink-0 mt-1" />
+            <div className="flex-1 space-y-3">
+              <div>
+                <h4 className="font-medium text-purple-900">Help Improve Pattern Detection</h4>
+                <p className="text-sm text-purple-700">
+                  Our ML model detected {mlPredictions.length} pattern(s). Was this accurate?
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                {mlPredictions.map((prediction, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-white/50 rounded text-sm">
+                    <span className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {Math.round(prediction.confidence * 100)}%
+                      </Badge>
+                      {prediction.pattern.replace('-', ' ')}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleMLFeedback('correct')}
+                        className="h-6 px-2 text-xs hover:bg-green-100"
+                      >
+                        <ThumbsUp size={12} className="mr-1" />
+                        Correct
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleMLFeedback('incorrect')}
+                        className="h-6 px-2 text-xs hover:bg-red-100"
+                      >
+                        <ThumbsDown size={12} className="mr-1" />
+                        Wrong
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleMLFeedback('partial')}
+                  className="text-xs"
+                >
+                  Partially Correct
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setPendingFeedback(null)}
+                  className="text-xs"
+                >
+                  Skip
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }, [pendingFeedback, mlPredictions, handleMLFeedback])
 
   const getToneColor = useCallback((tone: string) => {
     switch (tone) {
@@ -290,13 +469,21 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
                         </div>
 
                         {/* AI Analysis Display */}
-                        {message.author !== 'ai' && message.aiAnalysis && (
+                        {message.author !== 'ai' && (message.aiAnalysis || message.detectedPatterns) && (
                           <div className={`mt-2 ${message.author === currentPlayer ? 'text-left' : ''}`}>
-                            {/* Manipulation Tactics */}
-                            {renderManipulationTactics(message.aiAnalysis)}
+                            {/* ML Pattern Detection */}
+                            {renderMLPredictions(message)}
                             
-                            {/* AI Suggestions */}
-                            {message.author === currentPlayer && renderAISuggestions(message.aiAnalysis)}
+                            {/* Traditional AI Analysis */}
+                            {message.aiAnalysis && (
+                              <>
+                                {/* Manipulation Tactics */}
+                                {renderManipulationTactics(message.aiAnalysis)}
+                                
+                                {/* AI Suggestions */}
+                                {message.author === currentPlayer && renderAISuggestions(message.aiAnalysis)}
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -358,8 +545,19 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
           {/* Stats and Resolution */}
           <div className="pt-4 border-t">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
-              <div className="text-sm text-muted-foreground">
-                Messages: {sessionData.messages.length} • AI Interventions: {aiInterventionCount}
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-muted-foreground">
+                  Messages: {sessionData.messages.length} • AI Interventions: {aiInterventionCount}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleMLInsights}
+                  className="text-xs"
+                >
+                  <TrendUp size={14} className="mr-1" />
+                  ML Insights {showMLInsights ? '−' : '+'}
+                </Button>
               </div>
               <Badge variant="outline" className="text-xs">
                 {sessionData.messages.length < 6 ? 'Getting Started' : 
@@ -384,6 +582,69 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
           </div>
         </CardContent>
       </Card>
+
+      {/* ML Feedback Request */}
+      {renderMLFeedback()}
+
+      {/* ML Insights Panel */}
+      {showMLInsights && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendUp size={20} />
+              Machine Learning Insights
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Our ML model is learning from your feedback to improve pattern detection accuracy
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const metrics = machineLearningService.getModelMetrics()
+              return (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-3 border rounded-lg">
+                      <div className="text-lg font-semibold text-primary">v{metrics.version}</div>
+                      <div className="text-xs text-muted-foreground">Model Version</div>
+                    </div>
+                    <div className="text-center p-3 border rounded-lg">
+                      <div className="text-lg font-semibold text-green-600">
+                        {Math.round(metrics.accuracy * 100)}%
+                      </div>
+                      <div className="text-xs text-muted-foreground">Accuracy</div>
+                    </div>
+                    <div className="text-center p-3 border rounded-lg">
+                      <div className="text-lg font-semibold text-blue-600">{metrics.trainingExamples}</div>
+                      <div className="text-xs text-muted-foreground">Training Examples</div>
+                    </div>
+                    <div className="text-center p-3 border rounded-lg">
+                      <div className="text-xs font-semibold text-purple-600">
+                        {metrics.lastUpdated.toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Last Updated</div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h5 className="font-medium mb-2">Pattern Detection Weights</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                      {Object.entries(metrics.patternWeights).map(([pattern, weight]) => (
+                        <div key={pattern} className="flex justify-between p-2 bg-muted/30 rounded">
+                          <span className="capitalize">{pattern.replace('-', ' ')}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {weight}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Session Pattern Insights */}
       {sessionData.messages.length > 3 && (

@@ -1,6 +1,6 @@
 import { AIAnalysisResult, ManipulationTactic } from '../services/aiAnalyzer'
 
-export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard' | 'pattern-recognition'
+export type SessionPhase = 'welcome' | 'issue-agreement' | 'steel-manning' | 'statement-locking' | 'discussion' | 'resolution' | 'summary' | 'analytics' | 'history' | 'couples-dashboard' | 'pattern-recognition' | 'ml-insights'
 
 export interface Message {
   id: string
@@ -8,6 +8,9 @@ export interface Message {
   content: string
   timestamp: number
   aiAnalysis?: AIAnalysisResult
+  detectedPatterns?: string[] // ML-detected patterns
+  mlConfidence?: number // Confidence score from ML model
+  mlEnhanced?: boolean // Whether message includes ML-enhanced suggestions
 }
 
 export interface SessionData {
@@ -83,7 +86,8 @@ export const PHASE_PROGRESS: Record<SessionPhase, number> = {
   'analytics': 100,
   'history': 100,
   'couples-dashboard': 100,
-  'pattern-recognition': 100
+  'pattern-recognition': 100,
+  'ml-insights': 100
 }
 
 export const PHASE_NAMES: Record<SessionPhase, string> = {
@@ -97,5 +101,6 @@ export const PHASE_NAMES: Record<SessionPhase, string> = {
   'analytics': 'Analytics Dashboard',
   'history': 'Session History',
   'couples-dashboard': 'Couples Dashboard',
-  'pattern-recognition': 'Pattern Recognition'
+  'pattern-recognition': 'Pattern Recognition',
+  'ml-insights': 'ML Insights'
 }
