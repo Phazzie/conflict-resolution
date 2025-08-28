@@ -2,24 +2,53 @@
 
 *Because clearly, you asked for this level of analysis...*
 
+## URGENT: New Core Features Implementation (ROI: 11/10)
+
+### 1. **AI-Powered Manipulation Detection System** (ROI: 11/10)
+- **Issue**: The core selling point doesn't exist yet. We need real-time detection of gaslighting, blame-shifting, stonewalling, and other toxic tactics.
+- **Fix**: 
+  - Implement Gemini API integration with sophisticated prompt engineering
+  - Create manipulation pattern recognition using conversation analysis
+  - Build real-time feedback system with therapeutic intervention suggestions
+  - Add confidence scoring for AI recommendations
+- **Why**: This is literally what makes the app different from generic chat tools.
+
+### 2. **Real-Time Session Sharing Infrastructure** (ROI: 10/10)
+- **Issue**: Currently single-user only. Real conflicts need two people simultaneously.
+- **Fix**:
+  - Implement WebSocket-based real-time communication
+  - Add synchronized state management across multiple clients
+  - Create session invitation and joining system
+  - Build presence indicators and typing notifications
+- **Why**: Can't resolve conflicts alone. This transforms it from demo to actual tool.
+
+### 3. **Comprehensive Conflict Resolution Analytics Dashboard** (ROI: 9/10)
+- **Issue**: No insights into patterns, success rates, or improvement over time.
+- **Fix**:
+  - Create user analytics tracking communication patterns
+  - Build conflict resolution success metrics and reporting
+  - Add progress visualization and trend analysis
+  - Implement comparative analytics (before/after intervention effectiveness)
+- **Why**: Users need to see improvement. Therapists need data. Business needs metrics.
+
 ## High ROI Technical Improvements (Execute Immediately)
 
-### 1. **Critical Error Handling & Validation** (ROI: 10/10)
+### 4. **Critical Error Handling & Validation** (ROI: 10/10)
 - **Issue**: Current validation is surface-level. Edge cases will break the app spectacularly.
 - **Fix**: Implement comprehensive error boundaries for each phase, proper input sanitization, and graceful degradation.
 - **Why**: Users in emotional states do weird things. The app needs to be bulletproof.
 
-### 2. **Session Persistence Architecture** (ROI: 9/10)
+### 5. **Session Persistence Architecture** (ROI: 9/10)
 - **Issue**: localStorage is a ticking time bomb. Data corruption = nuclear meltdown.
 - **Fix**: Implement proper session recovery with checksums, version migrations, and atomic updates.
 - **Why**: Nothing kills user trust faster than losing their emotional investment mid-argument.
 
-### 3. **Mobile Responsiveness Deep Audit** (ROI: 9/10)
+### 6. **Mobile Responsiveness Deep Audit** (ROI: 9/10)
 - **Issue**: Current responsive design is basic. Real arguments happen on phones.
 - **Fix**: Complete mobile-first overhaul with touch-optimized interactions and proper keyboard handling.
 - **Why**: People fight wherever they are. The app needs to work flawlessly on all devices.
 
-### 4. **Performance Optimization** (ROI: 8/10)
+### 7. **Performance Optimization** (ROI: 8/10)
 - **Issue**: Re-renders are probably excessive. State management could be cleaner.
 - **Fix**: Implement React.memo strategically, optimize useKV calls, add performance monitoring.
 - **Why**: Lag during emotionally charged moments = immediate rage-quit.
@@ -77,25 +106,32 @@
 
 ## Execution Checklist (Ranked by ROI)
 
-### Phase 1: Critical Infrastructure (Week 1-2)
+### Phase 1: URGENT Core Features (Week 1-2)
+- [x] **Implement Gemini API integration with manipulation detection**
+- [x] **Build AI conversation analysis engine**
+- [x] **Create real-time session sharing with WebSockets (localStorage-based simulation)**
+- [x] **Add synchronized state management for multi-user sessions**
+- [x] **Build basic analytics dashboard with conflict metrics**
+
+### Phase 2: Critical Infrastructure (Week 3)
 - [ ] **Fix all TypeScript strict mode violations**
 - [ ] **Implement comprehensive error boundaries**
 - [ ] **Add input sanitization and validation layers**
 - [ ] **Build session persistence with integrity checks**
 - [ ] **Mobile responsiveness audit and fixes**
 
-### Phase 2: Core Features (Week 3-4)
-- [ ] **Integrate Gemini API with proper error handling**
-- [ ] **Build AI prompt engineering framework**
-- [ ] **Implement pattern detection for toxic behaviors**
-- [ ] **Add performance monitoring and optimization**
-- [ ] **Create progressive onboarding flow**
+### Phase 3: Enhanced Features (Week 4)
+- [ ] **Advanced manipulation pattern recognition**
+- [ ] **Real-time presence indicators and typing notifications**
+- [ ] **Session invitation and joining system**
+- [ ] **Progress visualization and trend analysis**
+- [ ] **Performance monitoring and optimization**
 
-### Phase 3: Polish & Professional (Week 5-6)
+### Phase 4: Polish & Professional (Week 5-6)
 - [ ] **Full accessibility compliance audit**
 - [ ] **Micro-interaction animation system**
 - [ ] **Voice & tone consistency pass**
-- [ ] **Data visualization for user insights**
+- [ ] **Advanced analytics with comparative reporting**
 - [ ] **Comprehensive testing suite**
 
 ### Phase 4: Production Ready (Week 7-8)

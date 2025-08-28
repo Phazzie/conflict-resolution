@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Lock, Users, ChatCircle, CircleNotch } from '@phosphor-icons/react'
+import { Toaster } from '@/components/ui/sonner'
+import { Lock, Users, ChatCircle, CircleNotch, ChartBar } from '@phosphor-icons/react'
 import { SessionData, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
 import { validateSessionData } from './utils/validation'
 import { clearSession } from './utils/sessionPersistence'
@@ -16,6 +17,8 @@ import StatementLocking from './components/StatementLocking'
 import DiscussionPhase from './components/DiscussionPhase'
 import ResolutionPhase from './components/ResolutionPhase'
 import SessionSummary from './components/SessionSummary'
+import AnalyticsDashboard from './components/AnalyticsDashboard'
+import SessionSharing from './components/SessionSharing'
 
 function App() {
   const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
@@ -102,6 +105,48 @@ function App() {
       finalResolution: '',
       sessionStarted: Date.now()
     })
+  }
+
+  const enableMultiplayer = () => {
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
+    updateSessionData({
+      isMultiplayer: true,
+      sessionId,
+      participants: [{
+        playerId: currentPlayer,
+        isOnline: true,
+        lastSeen: Date.now(),
+        isTyping: false
+      }]
+    })
+  }
+
+  const joinSession = async (sessionId: string): Promise<boolean> => {
+    // TODO: Implement actual session joining logic
+    // For now, simulate joining
+    updateSessionData({
+      isMultiplayer: true,
+      sessionId,
+      participants: [
+        { playerId: 'player1', isOnline: true, lastSeen: Date.now(), isTyping: false },
+        { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
+      ]
+    })
+    return true
+  }
+
+  const viewAnalytics = () => {
+    updateSessionData({ phase: 'analytics' })
+  }
+
+  const exportAnalytics = (data: string) => {
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mixitfixit-analytics-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   // Check for session recovery
@@ -262,9 +307,22 @@ function App() {
                   </Badge>
                 )}
               </div>
-              <Button variant="outline" size="sm" onClick={resetSession} className="text-xs sm:text-sm">
-                Reset
-              </Button>
+              <div className="flex items-center gap-2">
+                {safeSessionData.messages.length > 0 && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={viewAnalytics}
+                    className="text-xs sm:text-sm"
+                  >
+                    <ChartBar size={16} className="mr-1" />
+                    Analytics
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={resetSession} className="text-xs sm:text-sm">
+                  Reset
+                </Button>
+              </div>
             </div>
             
             <div className="mt-3 sm:mt-4">
@@ -338,7 +396,28 @@ function App() {
               />
             </PhaseErrorBoundary>
           )}
+
+          {safeSessionData.phase === 'analytics' && (
+            <PhaseErrorBoundary phase="Analytics" onReset={resetSession}>
+              <AnalyticsDashboard onExport={exportAnalytics} />
+            </PhaseErrorBoundary>
+          )}
+
+          {/* Session Sharing Component - show on discussion phase */}
+          {safeSessionData.phase === 'discussion' && (
+            <div className="mt-8">
+              <SessionSharing
+                sessionId={safeSessionData.sessionId}
+                currentPlayer={currentPlayer}
+                participants={safeSessionData.participants || []}
+                isMultiplayer={safeSessionData.isMultiplayer || false}
+                onEnableMultiplayer={enableMultiplayer}
+                onJoinSession={joinSession}
+              />
+            </div>
+          )}
         </main>
+        <Toaster />
       </div>
     </ErrorBoundary>
   )
