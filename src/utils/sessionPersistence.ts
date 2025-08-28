@@ -4,6 +4,7 @@
 
 import { SessionData } from '@/types/session'
 import { validateSessionData, sanitizeObject } from './validation'
+import { secureStorage } from './secureStorage'
 
 const SESSION_KEY = 'mixitfixit-session'
 const SESSION_VERSION = '1.0'
@@ -59,15 +60,15 @@ export function saveSession(sessionData: SessionData): { success: boolean; error
     
     // Atomic write - if this fails, original data is preserved
     const sessionJson = JSON.stringify(persistedSession)
-    localStorage.setItem(SESSION_KEY, sessionJson)
-    localStorage.setItem(CHECKSUM_KEY, persistedSession.checksum)
+    secureStorage.setItem(SESSION_KEY, persistedSession)
+    secureStorage.setItem(CHECKSUM_KEY, persistedSession.checksum)
     
     // Verify the write was successful
     const verification = loadSession()
     if (!verification.success || !verification.sessionData) {
       // Rollback - clear potentially corrupted data
-      localStorage.removeItem(SESSION_KEY)
-      localStorage.removeItem(CHECKSUM_KEY)
+      secureStorage.removeItem(SESSION_KEY)
+      secureStorage.removeItem(CHECKSUM_KEY)
       return { 
         success: false, 
         error: 'Session save verification failed - data may be corrupted' 
@@ -96,20 +97,12 @@ export function loadSession(): {
   const warnings: string[] = []
   
   try {
-    const sessionJson = localStorage.getItem(SESSION_KEY)
-    const storedChecksum = localStorage.getItem(CHECKSUM_KEY)
+    const persistedSession = secureStorage.getItem<PersistedSession>(SESSION_KEY)
+    const storedChecksum = secureStorage.getItem<string>(CHECKSUM_KEY)
     
-    if (!sessionJson) {
+    if (!persistedSession) {
       // No session found - this is normal for first-time users
       return { success: true }
-    }
-    
-    let persistedSession: PersistedSession
-    try {
-      persistedSession = JSON.parse(sessionJson)
-    } catch (parseError) {
-      warnings.push('Session data was malformed JSON')
-      return attemptDataRecovery(warnings)
     }
     
     // Version compatibility check
@@ -306,8 +299,8 @@ function attemptSessionRecovery(corruptedData: any): {
  */
 export function clearSession(): void {
   try {
-    localStorage.removeItem(SESSION_KEY)
-    localStorage.removeItem(CHECKSUM_KEY)
+    secureStorage.removeItem(SESSION_KEY)
+    secureStorage.removeItem(CHECKSUM_KEY)
     localStorage.removeItem('mixitfixit-player-role') // Also clear player role
   } catch (error) {
     console.error('Failed to clear session:', error)
@@ -325,27 +318,22 @@ export function getSessionMetadata(): {
   sizeKB?: number
 } {
   try {
-    const sessionJson = localStorage.getItem(SESSION_KEY)
+    const persistedSession = secureStorage.getItem<PersistedSession>(SESSION_KEY)
     
-    if (!sessionJson) {
+    if (!persistedSession) {
       return { exists: false }
     }
     
+    const sessionJson = JSON.stringify(persistedSession)
     const sizeKB = Math.round((sessionJson.length * 2) / 1024) // Rough size in KB
+    const age = Date.now() - (persistedSession.timestamp || 0)
     
-    try {
-      const persistedSession: PersistedSession = JSON.parse(sessionJson)
-      const age = Date.now() - (persistedSession.timestamp || 0)
-      
-      return {
-        exists: true,
-        version: persistedSession.version,
-        timestamp: persistedSession.timestamp,
-        age,
-        sizeKB
-      }
-    } catch {
-      return { exists: true, sizeKB }
+    return {
+      exists: true,
+      version: persistedSession.version,
+      timestamp: persistedSession.timestamp,
+      age,
+      sizeKB
     }
   } catch {
     return { exists: false }

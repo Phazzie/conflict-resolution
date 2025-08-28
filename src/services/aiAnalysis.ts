@@ -1,4 +1,5 @@
 import { AIAnalysis, ManipulationTactic, EmotionalTone, AISuggestion } from '@/types/session'
+import { aiSanitizer } from '@/utils/aiSanitizer'
 
 /**
  * AI-powered conversation analysis service
@@ -119,10 +120,20 @@ MANIPULATION DETECTION FOCUS:
    */
   private parseAIResponse(rawResponse: string): AIAnalysis {
     try {
-      const parsed = JSON.parse(rawResponse)
+      // First sanitize the raw response
+      const sanitizedResponse = aiSanitizer.sanitizeResponse(rawResponse)
       
-      // Validate and sanitize response
-      return {
+      // Validate JSON structure
+      const validation = aiSanitizer.validateJSONResponse(sanitizedResponse)
+      if (!validation.valid || !validation.parsed) {
+        console.error('AI response validation failed:', validation.error)
+        return this.getFallbackAnalysis(rawResponse)
+      }
+      
+      const parsed = validation.parsed
+      
+      // Additional structure validation and sanitization
+      const analysis: AIAnalysis = {
         manipulationTactics: Array.isArray(parsed.manipulationTactics) ? parsed.manipulationTactics : [],
         toxicityScore: Math.max(0, Math.min(1, parsed.toxicityScore || 0)),
         emotionalTone: {
@@ -133,6 +144,9 @@ MANIPULATION DETECTION FOCUS:
         suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.slice(0, 3) : [], // Limit to 3 suggestions
         confidence: Math.max(0, Math.min(1, parsed.confidence || 0.5))
       }
+      
+      // Final sanitization of the complete analysis object
+      return aiSanitizer.sanitizeAIAnalysis(analysis)
     } catch (error) {
       console.error('Failed to parse AI response:', error)
       return this.getFallbackAnalysis(rawResponse)
@@ -194,7 +208,8 @@ Provide a single sentence intervention in MixitFixit's signature tone: direct, s
 `
       
       const response = await spark.llm(prompt, 'gpt-4o-mini')
-      return response.trim().replace(/^["']|["']$/g, '') // Remove quotes
+      const sanitizedResponse = aiSanitizer.sanitizeResponse(response.trim().replace(/^["']|["']$/g, ''))
+      return sanitizedResponse
     } catch (error) {
       console.error('Intervention generation failed:', error)
       
