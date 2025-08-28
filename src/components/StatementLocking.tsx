@@ -9,9 +9,6 @@ import { validateStatementInput } from '../utils/validation'
 
 const StatementLocking = React.memo(({ sessionData, currentPlayer, updateSessionData }: PhaseProps) => {
   const [currentStatement, setCurrentStatement] = useState('')
-  const [validationError, setValidationError] = useState<string>('')
-  const [showLockConfirm, setShowLockConfirm] = useState(false)
-  
   const [showLockConfirm, setShowLockConfirm] = useState(false)
   const myCurrentStatement = currentPlayer === 'player1' ? sessionData.playerOneStatement : sessionData.playerTwoStatement
   const otherPlayerStatement = currentPlayer === 'player1' ? sessionData.playerTwoStatement : sessionData.playerOneStatement
@@ -19,11 +16,10 @@ const StatementLocking = React.memo(({ sessionData, currentPlayer, updateSession
   const lockStatement = () => {
     const validation = validateStatementInput(currentStatement)
     if (!validation.isValid) {
-      setValidationError(validation.error || 'Invalid statement')
+      console.warn('Statement validation failed:', validation.error)
       return
     }
     
-    setValidationError('')
     const updates = currentPlayer === 'player1' 
       ? { playerOneStatement: currentStatement.trim() }
       : { playerTwoStatement: currentStatement.trim() }

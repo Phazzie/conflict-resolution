@@ -29,7 +29,7 @@ interface ResolutionPhaseProps {
   updateSessionData: (updates: Partial<SessionData>) => void
 }
 
-export default function ResolutionPhase({ sessionData, currentPlayer, updateSessionData }: ResolutionPhaseProps) {
+export default function ResolutionPhase({ sessionData, updateSessionData }: Omit<ResolutionPhaseProps, 'currentPlayer'>) {
   const [currentProposal, setCurrentProposal] = useState('')
   const [modification, setModification] = useState('')
 

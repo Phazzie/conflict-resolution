@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Lock, Users, ChatCircle, CheckCircle, FileText, CircleNotch } from '@phosphor-icons/react'
-import { SessionData, SessionPhase, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
+import { Lock, Users, ChatCircle, CircleNotch } from '@phosphor-icons/react'
+import { SessionData, PlayerRole, PHASE_PROGRESS, PHASE_NAMES } from './types/session'
 import { validateSessionData } from './utils/validation'
+import { clearSession } from './utils/sessionPersistence'
 import ErrorBoundary from './components/ErrorBoundary'
+import PhaseErrorBoundary from './components/PhaseErrorBoundary'
 import IssueAgreement from './components/IssueAgreement'
 import SteelManningPhase from './components/SteelManningPhase'
 import StatementLocking from './components/StatementLocking'
@@ -73,7 +75,8 @@ function App() {
   }
 
   const updateSessionData = (updates: Partial<SessionData>) => {
-    setSessionData({ ...safeSessionData, ...updates })
+    const newSessionData = { ...safeSessionData, ...updates } as SessionData
+    setSessionData(newSessionData)
   }
 
   const startSession = () => {
@@ -86,6 +89,7 @@ function App() {
   const resetSession = () => {
     localStorage.removeItem('mixitfixit-player-role')
     setValidationError('')
+    clearSession() // Use enhanced session clearing
     setSessionData({
       phase: 'welcome',
       agreedIssue: '',
@@ -279,50 +283,60 @@ function App() {
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
           {safeSessionData.phase === 'issue-agreement' && (
-            <IssueAgreement 
-              sessionData={safeSessionData}
-              currentPlayer={currentPlayer}
-              updateSessionData={updateSessionData}
-            />
+            <PhaseErrorBoundary phase="Issue Agreement" onReset={resetSession}>
+              <IssueAgreement 
+                sessionData={safeSessionData}
+                updateSessionData={updateSessionData}
+              />
+            </PhaseErrorBoundary>
           )}
           
           {safeSessionData.phase === 'steel-manning' && (
-            <SteelManningPhase
-              sessionData={safeSessionData}
-              currentPlayer={currentPlayer}
-              updateSessionData={updateSessionData}
-            />
+            <PhaseErrorBoundary phase="Steel Manning" onReset={resetSession}>
+              <SteelManningPhase
+                sessionData={safeSessionData}
+                currentPlayer={currentPlayer}
+                updateSessionData={updateSessionData}
+              />
+            </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'statement-locking' && (
-            <StatementLocking
-              sessionData={safeSessionData}
-              currentPlayer={currentPlayer}
-              updateSessionData={updateSessionData}
-            />
+            <PhaseErrorBoundary phase="Statement Locking" onReset={resetSession}>
+              <StatementLocking
+                sessionData={safeSessionData}
+                currentPlayer={currentPlayer}
+                updateSessionData={updateSessionData}
+              />
+            </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'discussion' && (
-            <DiscussionPhase
-              sessionData={safeSessionData}
-              currentPlayer={currentPlayer}
-              updateSessionData={updateSessionData}
-            />
+            <PhaseErrorBoundary phase="Discussion" onReset={resetSession}>
+              <DiscussionPhase
+                sessionData={safeSessionData}
+                currentPlayer={currentPlayer}
+                updateSessionData={updateSessionData}
+              />
+            </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'resolution' && (
-            <ResolutionPhase
-              sessionData={safeSessionData}
-              currentPlayer={currentPlayer}
-              updateSessionData={updateSessionData}
-            />
+            <PhaseErrorBoundary phase="Resolution" onReset={resetSession}>
+              <ResolutionPhase
+                sessionData={safeSessionData}
+                updateSessionData={updateSessionData}
+              />
+            </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'summary' && (
-            <SessionSummary
-              sessionData={safeSessionData}
-              onReset={resetSession}
-            />
+            <PhaseErrorBoundary phase="Summary" onReset={resetSession}>
+              <SessionSummary
+                sessionData={safeSessionData}
+                onReset={resetSession}
+              />
+            </PhaseErrorBoundary>
           )}
         </main>
       </div>

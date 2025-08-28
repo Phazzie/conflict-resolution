@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { FileText, Download, ArrowCounterClockwise, Star, ChatCircle } from '@phosphor-icons/react'
+import { FileText, Download, ArrowCounterClockwise, Star } from '@phosphor-icons/react'
 
 interface SessionData {
   phase: string

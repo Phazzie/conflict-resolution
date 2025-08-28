@@ -8,7 +8,7 @@ import { PhaseProps } from '../types/session'
 import { validateIssueInput } from '../utils/validation'
 import { SuccessCheckmark, LoadingSpinner } from '@/components/ui/loading'
 
-const IssueAgreement = React.memo(({ sessionData, currentPlayer, updateSessionData }: PhaseProps) => {
+const IssueAgreement = React.memo(({ sessionData, updateSessionData }: Omit<PhaseProps, 'currentPlayer'>) => {
   const [proposedIssue, setProposedIssue] = useState('')
   const [modification, setModification] = useState('')
   const [validationError, setValidationError] = useState<string>('')

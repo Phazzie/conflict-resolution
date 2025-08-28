@@ -1,4 +1,4 @@
-import { Loader2 } from '@phosphor-icons/react'
+import { CircleNotch } from '@phosphor-icons/react'
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg'
@@ -14,7 +14,7 @@ export function LoadingSpinner({ size = 'md', text }: LoadingSpinnerProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <Loader2 className={`${sizeClasses[size]} animate-spin`} />
+      <CircleNotch className={`${sizeClasses[size]} animate-spin`} />
       {text && <span className="text-sm text-muted-foreground">{text}</span>}
     </div>
   )
