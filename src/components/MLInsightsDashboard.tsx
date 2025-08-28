@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Brain, TrendUp, Download, RotateCcw, ChartLine, Target, Lightbulb, Clock, CheckCircle, XCircle, MinusCircle } from '@phosphor-icons/react'
+import { Brain, TrendUp, Download, RotateCcw, ChartLine, Target, Lightbulb, Clock, CheckCircle, XCircle, MinusCircle, Settings, Zap, Activity } from '@phosphor-icons/react'
 import { machineLearningService } from '../services/machineLearning'
 import { toast } from 'sonner'
 
@@ -18,6 +18,13 @@ interface FeedbackDistribution {
   partial: number
 }
 
+interface OptimizationRecommendation {
+  type: string
+  priority: 'high' | 'medium' | 'low'
+  description: string
+  action: string
+}
+
 interface MLInsightsDashboardProps {
   onClose: () => void
   onExport: (data: string) => void
@@ -28,6 +35,8 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
   const [isLoading, setIsLoading] = useState(false)
   const [accuracyHistory, setAccuracyHistory] = useState<AccuracyTrend[]>([])
   const [feedbackStats, setFeedbackStats] = useState<FeedbackDistribution>({ correct: 0, incorrect: 0, partial: 0 })
+  const [recommendations, setRecommendations] = useState<OptimizationRecommendation[]>([])
+  const [isOptimizing, setIsOptimizing] = useState(false)
 
   useEffect(() => {
     // Load extended metrics
@@ -62,6 +71,13 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
         
         setFeedbackStats(stats)
       }
+
+      // Load optimization recommendations
+      try {
+        setRecommendations(machineLearningService.getOptimizationRecommendations())
+      } catch (error) {
+        console.error('Failed to load optimization recommendations:', error)
+      }
     } catch (error) {
       console.error('Failed to load extended metrics:', error)
     }
@@ -84,6 +100,21 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
     }
     
     return history.slice(-10) // Last 10 data points
+  }
+
+  const handleTriggerOptimization = async () => {
+    setIsOptimizing(true)
+    try {
+      await machineLearningService.triggerOptimization()
+      setMetrics(machineLearningService.getModelMetrics())
+      loadExtendedMetrics()
+      toast.success('Model optimization completed successfully!')
+    } catch (error) {
+      console.error('Failed to trigger optimization:', error)
+      toast.error('Failed to optimize model')
+    } finally {
+      setIsOptimizing(false)
+    }
   }
 
   const handleExportModel = () => {
@@ -190,16 +221,16 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${getAccuracyBgColor(metrics.accuracy)}`}>
-                <Target size={20} className={getAccuracyColor(metrics.accuracy)} />
+              <div className={`p-2 rounded-lg ${getAccuracyBgColor(metrics.currentAccuracy || metrics.accuracy)}`}>
+                <Target size={20} className={getAccuracyColor(metrics.currentAccuracy || metrics.accuracy)} />
               </div>
               <div>
-                <div className={`text-2xl font-bold ${getAccuracyColor(metrics.accuracy)}`}>
-                  {Math.round(metrics.accuracy * 100)}%
+                <div className={`text-2xl font-bold ${getAccuracyColor(metrics.currentAccuracy || metrics.accuracy)}`}>
+                  {Math.round((metrics.currentAccuracy || metrics.accuracy) * 100)}%
                 </div>
                 <div className="text-sm text-muted-foreground">Current Accuracy</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {feedbackAccuracy > 0 ? `User feedback: ${Math.round(feedbackAccuracy * 100)}%` : 'No feedback yet'}
+                  {metrics.accuracy !== metrics.currentAccuracy ? `Avg: ${Math.round(metrics.accuracy * 100)}%` : 'Real-time'}
                 </div>
               </div>
             </div>
@@ -229,21 +260,219 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
           <CardContent className="p-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-100 rounded-lg">
-                <Clock size={20} className="text-indigo-600" />
+                <Settings size={20} className="text-indigo-600" />
               </div>
               <div>
                 <div className="text-sm font-medium text-indigo-600">
-                  {metrics.lastUpdated.toLocaleDateString()}
+                  {metrics.optimizer?.algorithm?.toUpperCase() || 'SGD'}
                 </div>
-                <div className="text-xs text-muted-foreground">Last Training</div>
+                <div className="text-xs text-muted-foreground">Optimizer</div>
                 <div className="text-xs text-indigo-600">
-                  {metrics.lastUpdated.toLocaleTimeString()}
+                  LR: {(metrics.optimizer?.currentLearningRate || 0.01).toExponential(2)}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Automated Model Optimization Dashboard */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap size={20} className="text-yellow-500" />
+            Automated Model Optimization
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Real-time optimization with adaptive learning rates and automated hyperparameter tuning
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Optimizer Status */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-2">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Settings size={16} className="text-blue-600" />
+                  <span className="font-medium text-sm">Active Optimizer</span>
+                </div>
+                <div className="space-y-2">
+                  <Badge variant="outline" className="border-blue-500 text-blue-700">
+                    {metrics.optimizer?.algorithm?.toUpperCase() || 'Default SGD'}
+                  </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    Step: {metrics.optimizer?.currentStep || 0}
+                  </div>
+                  {metrics.optimizer?.algorithm === 'adam' && (
+                    <div className="text-xs space-y-1">
+                      <div>β₁: {(metrics.optimizer as any).beta1 || 0.9}</div>
+                      <div>β₂: {(metrics.optimizer as any).beta2 || 0.999}</div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity size={16} className="text-green-600" />
+                  <span className="font-medium text-sm">Learning Rate</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-lg font-bold text-green-700">
+                    {(metrics.optimizer?.currentLearningRate || 0.01).toExponential(2)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Base: {(metrics.optimizer?.baseLearningRate || 0.01).toExponential(2)}
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <div>Min: {(metrics.learningSchedule?.minRate || 0.0001).toExponential(1)}</div>
+                    <div>Max: {(metrics.learningSchedule?.maxRate || 0.1).toExponential(1)}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendUp size={16} className="text-purple-600" />
+                  <span className="font-medium text-sm">Adaptive Schedule</span>
+                </div>
+                <div className="space-y-2">
+                  <Badge variant="outline" className="border-purple-500 text-purple-700">
+                    {metrics.learningSchedule?.type?.toUpperCase() || 'CONSTANT'}
+                  </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    Plateau: {metrics.learningSchedule?.plateauCounter || 0}/{metrics.learningSchedule?.plateauPatience || 20}
+                  </div>
+                  {metrics.performanceMetrics && (
+                    <div className="text-xs space-y-1">
+                      <div>Loss: {metrics.performanceMetrics.averageLoss?.toFixed(3) || 'N/A'}</div>
+                      <div>Convergence: {(metrics.performanceMetrics.convergence * 100)?.toFixed(1) || 0}%</div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Optimization Actions */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={handleTriggerOptimization}
+              disabled={isOptimizing}
+              className="flex items-center gap-2"
+              size="sm"
+            >
+              <Zap size={16} />
+              {isOptimizing ? 'Optimizing Model...' : 'Trigger Optimization'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setMetrics(machineLearningService.getModelMetrics())
+                loadExtendedMetrics()
+              }}
+              size="sm"
+            >
+              <Activity size={16} className="mr-2" />
+              Refresh Metrics
+            </Button>
+          </div>
+
+          {/* Performance Metrics */}
+          {metrics.performanceMetrics && (
+            <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border rounded-lg">
+              <h4 className="font-medium mb-3 flex items-center gap-2">
+                <Target size={16} />
+                Advanced Performance Metrics
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <div className="font-medium text-green-700">Average Loss</div>
+                  <div className="text-2xl font-bold text-green-800">
+                    {metrics.performanceMetrics.averageLoss?.toFixed(3) || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium text-blue-700">Gradient Norm</div>
+                  <div className="text-2xl font-bold text-blue-800">
+                    {metrics.performanceMetrics.gradientNorm?.toFixed(3) || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium text-purple-700">Convergence</div>
+                  <div className="text-2xl font-bold text-purple-800">
+                    {((metrics.performanceMetrics.convergence || 0) * 100).toFixed(1)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium text-orange-700">F1 Score Avg</div>
+                  <div className="text-2xl font-bold text-orange-800">
+                    {metrics.performanceMetrics.patternF1Score 
+                      ? (Object.values(metrics.performanceMetrics.patternF1Score).reduce((a, b) => a + b, 0) / 
+                         Object.values(metrics.performanceMetrics.patternF1Score).length).toFixed(3)
+                      : 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Optimization Recommendations */}
+          {recommendations.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-medium flex items-center gap-2">
+                <Lightbulb size={16} className="text-yellow-500" />
+                Optimization Recommendations
+              </h4>
+              <div className="space-y-2">
+                {recommendations.slice(0, 5).map((rec, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-lg border ${
+                      rec.priority === 'high' ? 'bg-red-50 border-red-200' :
+                      rec.priority === 'medium' ? 'bg-yellow-50 border-yellow-200' :
+                      'bg-blue-50 border-blue-200'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Badge
+                        variant="outline"
+                        className={`mt-0.5 ${
+                          rec.priority === 'high' ? 'border-red-500 text-red-700' :
+                          rec.priority === 'medium' ? 'border-yellow-500 text-yellow-700' :
+                          'border-blue-500 text-blue-700'
+                        }`}
+                      >
+                        {rec.priority.toUpperCase()}
+                      </Badge>
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-medium text-sm ${
+                          rec.priority === 'high' ? 'text-red-900' :
+                          rec.priority === 'medium' ? 'text-yellow-900' :
+                          'text-blue-900'
+                        }`}>
+                          {rec.description}
+                        </div>
+                        <div className={`text-xs mt-1 ${
+                          rec.priority === 'high' ? 'text-red-700' :
+                          rec.priority === 'medium' ? 'text-yellow-700' :
+                          'text-blue-700'
+                        }`}>
+                          Action: {rec.action}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Learning Progress and Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -419,14 +648,14 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium">Overall Accuracy</span>
-                <span className={`text-sm font-bold ${getAccuracyColor(metrics.accuracy)}`}>
-                  {Math.round(metrics.accuracy * 100)}%
+                <span className={`text-sm font-bold ${getAccuracyColor(metrics.currentAccuracy || metrics.accuracy)}`}>
+                  {Math.round((metrics.currentAccuracy || metrics.accuracy) * 100)}%
                 </span>
               </div>
               <Progress 
-                value={metrics.accuracy * 100} 
-                className={`h-3 ${metrics.accuracy >= 0.8 ? '[&>div]:bg-green-500' : 
-                                  metrics.accuracy >= 0.6 ? '[&>div]:bg-yellow-500' : '[&>div]:bg-red-500'}`}
+                value={(metrics.currentAccuracy || metrics.accuracy) * 100} 
+                className={`h-3 ${(metrics.currentAccuracy || metrics.accuracy) >= 0.8 ? '[&>div]:bg-green-500' : 
+                                  (metrics.currentAccuracy || metrics.accuracy) >= 0.6 ? '[&>div]:bg-yellow-500' : '[&>div]:bg-red-500'}`}
               />
             </div>
 
@@ -458,7 +687,7 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
               </div>
             </div>
 
-            {metrics.accuracy < 0.5 && (
+            {(metrics.currentAccuracy || metrics.accuracy) < 0.5 && (
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <Lightbulb size={16} className="text-yellow-600 mt-0.5" />
@@ -567,28 +796,28 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
                 Accuracy Performance Analysis
               </h4>
               <div className="space-y-2 text-sm text-green-800">
-                {metrics.accuracy >= 0.8 && (
+                {(metrics.currentAccuracy || metrics.accuracy) >= 0.8 && (
                   <div className="flex items-start gap-2">
                     <CheckCircle size={16} className="text-green-600 mt-0.5" />
-                    <span>Excellent accuracy ({Math.round(metrics.accuracy * 100)}%). Model is performing at optimal levels.</span>
+                    <span>Excellent accuracy ({Math.round((metrics.currentAccuracy || metrics.accuracy) * 100)}%). Model is performing at optimal levels.</span>
                   </div>
                 )}
-                {metrics.accuracy >= 0.6 && metrics.accuracy < 0.8 && (
+                {(metrics.currentAccuracy || metrics.accuracy) >= 0.6 && (metrics.currentAccuracy || metrics.accuracy) < 0.8 && (
                   <div className="flex items-start gap-2">
                     <MinusCircle size={16} className="text-blue-600 mt-0.5" />
-                    <span>Good accuracy ({Math.round(metrics.accuracy * 100)}%). Model is reliable but has room for improvement.</span>
+                    <span>Good accuracy ({Math.round((metrics.currentAccuracy || metrics.accuracy) * 100)}%). Model is reliable but has room for improvement.</span>
                   </div>
                 )}
-                {metrics.accuracy >= 0.4 && metrics.accuracy < 0.6 && (
+                {(metrics.currentAccuracy || metrics.accuracy) >= 0.4 && (metrics.currentAccuracy || metrics.accuracy) < 0.6 && (
                   <div className="flex items-start gap-2">
                     <XCircle size={16} className="text-yellow-600 mt-0.5" />
-                    <span>Moderate accuracy ({Math.round(metrics.accuracy * 100)}%). More diverse training examples needed.</span>
+                    <span>Moderate accuracy ({Math.round((metrics.currentAccuracy || metrics.accuracy) * 100)}%). More diverse training examples needed.</span>
                   </div>
                 )}
-                {metrics.accuracy < 0.4 && (
+                {(metrics.currentAccuracy || metrics.accuracy) < 0.4 && (
                   <div className="flex items-start gap-2">
                     <XCircle size={16} className="text-red-600 mt-0.5" />
-                    <span>Low accuracy ({Math.round(metrics.accuracy * 100)}%). Model needs significant more training data and feedback.</span>
+                    <span>Low accuracy ({Math.round((metrics.currentAccuracy || metrics.accuracy) * 100)}%). Model needs significant more training data and feedback.</span>
                   </div>
                 )}
                 
@@ -617,7 +846,7 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
                 {totalFeedback > 0 && feedbackAccuracy < 0.7 && (
                   <li>• Consider reviewing feedback quality - ensure accurate pattern labeling for better learning</li>
                 )}
-                {metrics.accuracy < 0.7 && metrics.trainingExamples >= 50 && (
+                {(metrics.currentAccuracy || metrics.accuracy) < 0.7 && metrics.trainingExamples >= 50 && (
                   <li>• Model accuracy is below target despite sufficient data - consider resetting and retraining</li>
                 )}
                 {accuracyHistory.length > 3 && accuracyHistory.slice(-3).every((point, idx, arr) => 
@@ -656,9 +885,9 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
                         )}
                         <div>• Training velocity: ~{Math.floor(metrics.trainingExamples / Math.max(metrics.version, 1))} examples per version</div>
                         <div>• Current learning phase: {
-                          metrics.accuracy > 0.8 ? 'Optimization & Maintenance' :
-                          metrics.accuracy > 0.6 ? 'Active Learning & Improvement' :
-                          metrics.accuracy > 0.4 ? 'Rapid Learning & Pattern Discovery' :
+                          (metrics.currentAccuracy || metrics.accuracy) > 0.8 ? 'Optimization & Maintenance' :
+                          (metrics.currentAccuracy || metrics.accuracy) > 0.6 ? 'Active Learning & Improvement' :
+                          (metrics.currentAccuracy || metrics.accuracy) > 0.4 ? 'Rapid Learning & Pattern Discovery' :
                           'Initial Training & Foundation Building'
                         }</div>
                       </>
@@ -696,10 +925,10 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
                 <div className="text-muted-foreground">Training Data</div>
               </div>
               <div className="text-center">
-                <div className={`text-lg font-bold ${getAccuracyColor(metrics.accuracy)}`}>
-                  {metrics.accuracy >= 0.8 ? 'Excellent' :
-                   metrics.accuracy >= 0.6 ? 'Good' :
-                   metrics.accuracy >= 0.4 ? 'Fair' : 'Poor'}
+                <div className={`text-lg font-bold ${getAccuracyColor(metrics.currentAccuracy || metrics.accuracy)}`}>
+                  {(metrics.currentAccuracy || metrics.accuracy) >= 0.8 ? 'Excellent' :
+                   (metrics.currentAccuracy || metrics.accuracy) >= 0.6 ? 'Good' :
+                   (metrics.currentAccuracy || metrics.accuracy) >= 0.4 ? 'Fair' : 'Poor'}
                 </div>
                 <div className="text-muted-foreground">Accuracy</div>
               </div>
@@ -745,6 +974,17 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
                   Export Complete Model Data
                 </Button>
                 
+                <Button
+                  variant="outline"
+                  onClick={handleTriggerOptimization}
+                  disabled={isOptimizing}
+                  className="w-full flex items-center gap-2"
+                  size="sm"
+                >
+                  <Zap size={16} />
+                  {isOptimizing ? 'Auto-Optimizing...' : 'Trigger Auto-Optimization'}
+                </Button>
+
                 <Button
                   variant="outline"
                   onClick={() => setMetrics(machineLearningService.getModelMetrics())}
