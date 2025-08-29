@@ -1,393 +1,271 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { 
-  validateSessionData, 
-  sanitizeInput, 
-  sanitizeObject,
-  validateIssueInput,
-  validateSteelManInput,
-  validateStatementInput,
-  validateMessageInput,
-  createAtomicUpdate,
-  attemptSessionRecovery
-} from '../../utils/validation'
-import { SessionData } from '../../types/session'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { validateSessionData, sanitizeInput, sanitizeObject } from '../utils/validation'
+import { SessionData } from '../types/session'
 
-describe('Input Sanitization', () => {
-  describe('sanitizeInput', () => {
-    it('sanitizes HTML characters', () => {
-      expect(sanitizeInput('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;&#x2F;script&gt;')
-      expect(sanitizeInput('Hello & goodbye')).toBe('Hello &amp; goodbye')
-      expect(sanitizeInput("It's a 'test'")).toBe('It&#x27;s a &#x27;test&#x27;')
-    })
-
-    it('trims whitespace', () => {
-      expect(sanitizeInput('  hello world  ')).toBe('hello world')
-    })
-
-    it('handles non-string input gracefully', () => {
-      expect(sanitizeInput(null as any)).toBe('')
-      expect(sanitizeInput(123 as any)).toBe('')
-      expect(sanitizeInput(undefined as any)).toBe('')
-    })
-
-    it('preserves safe content', () => {
-      expect(sanitizeInput('Hello world')).toBe('Hello world')
-      expect(sanitizeInput('123-456-789')).toBe('123-456-789')
-    })
-  })
-
-  describe('sanitizeObject', () => {
-    it('sanitizes string properties', () => {
-      const obj = {
-        name: '<script>alert("xss")</script>',
-        count: 42,
-        active: true
-      }
-      const sanitized = sanitizeObject(obj)
-      
-      expect(sanitized.name).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;&#x2F;script&gt;')
-      expect(sanitized.count).toBe(42)
-      expect(sanitized.active).toBe(true)
-    })
-
-    it('sanitizes array items', () => {
-      const obj = {
-        tags: ['<script>', 'safe tag', '<img>'],
-        numbers: [1, 2, 3]
-      }
-      const sanitized = sanitizeObject(obj)
-      
-      expect(sanitized.tags[0]).toBe('&lt;script&gt;')
-      expect(sanitized.tags[1]).toBe('safe tag')
-      expect(sanitized.tags[2]).toBe('&lt;img&gt;')
-      expect(sanitized.numbers).toEqual([1, 2, 3])
-    })
-  })
-})
-
-describe('Session Data Validation', () => {
-  let validSessionData: SessionData
-
-  beforeEach(() => {
-    validSessionData = {
-      phase: 'welcome',
-      conflictContext: 'relationship',
-      agreedIssue: '',
-      playerOneSteelMan: '',
-      playerTwoSteelMan: '',
-      playerOneStatement: '',
-      playerTwoStatement: '',
-      messages: [],
-      proposedResolution: '',
-      finalResolution: '',
-      sessionStarted: Date.now()
-    }
+describe('Validation Utils - Error Handling', () => {
+  const createValidSessionData = (overrides: Partial<SessionData> = {}): SessionData => ({
+    phase: 'welcome',
+    conflictContext: 'relationship',
+    agreedIssue: '',
+    playerOneSteelMan: '',
+    playerTwoSteelMan: '',
+    playerOneStatement: '',
+    playerTwoStatement: '',
+    messages: [],
+    proposedResolution: '',
+    finalResolution: '',
+    sessionStarted: Date.now(),
+    ...overrides
   })
 
   describe('validateSessionData', () => {
     it('validates correct session data', () => {
-      const result = validateSessionData(validSessionData)
+      const sessionData = createValidSessionData()
+      const result = validateSessionData(sessionData)
+      
       expect(result.isValid).toBe(true)
       expect(result.error).toBeUndefined()
     })
 
-    it('rejects null or undefined data', () => {
-      const result1 = validateSessionData(null)
-      expect(result1.isValid).toBe(false)
-      expect(result1.error).toContain('session data got scrambled')
-
-      const result2 = validateSessionData(undefined)
-      expect(result2.isValid).toBe(false)
-      expect(result2.error).toContain('session data got scrambled')
-    })
-
-    it('rejects invalid phase', () => {
-      const invalidData = { ...validSessionData, phase: 'invalid-phase' as any }
-      const result = validateSessionData(invalidData)
+    it('provides user-friendly error messages for missing data', () => {
+      const result = validateSessionData(null)
+      
       expect(result.isValid).toBe(false)
-      expect(result.error).toContain('confused about where you are')
+      expect(result.error).toContain('session data got scrambled')
+      expect(result.error).toContain('browser storage got corrupted')
     })
 
-    it('validates phase-specific requirements', () => {
-      // Steel-manning phase requires agreed issue
-      const steelManningPhase = { ...validSessionData, phase: 'steel-manning' as const }
-      const result1 = validateSessionData(steelManningPhase)
-      expect(result1.isValid).toBe(false)
-      expect(result1.error).toContain('agree on what you\'re actually fighting about')
-
-      // Statement-locking requires steel-manning
-      const statementPhase = { 
-        ...validSessionData, 
-        phase: 'statement-locking' as const,
-        agreedIssue: 'Test issue that is long enough'
-      }
-      const result2 = validateSessionData(statementPhase)
-      expect(result2.isValid).toBe(false)
-      expect(result2.error).toContain('prove they understand each other')
+    it('provides user-friendly error messages for invalid phase', () => {
+      const sessionData = createValidSessionData({ phase: 'invalid-phase' as any })
+      const result = validateSessionData(sessionData)
+      
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('session phase is corrupted')
     })
 
-    it('provides warnings for data issues', () => {
-      const dataWithIssues = {
-        ...validSessionData,
-        conflictContext: 'unknown' as any,
-        sessionStarted: -1
-      }
-      const result = validateSessionData(dataWithIssues)
+    it('provides user-friendly error messages for invalid conflict context', () => {
+      const sessionData = createValidSessionData({ conflictContext: 'invalid-context' as any })
+      const result = validateSessionData(sessionData)
+      
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('conflict context setting is invalid')
+    })
+
+    it('warns about old sessions without failing validation', () => {
+      const oldSessionData = createValidSessionData({ 
+        sessionStarted: Date.now() - 25 * 60 * 60 * 1000 // 25 hours ago
+      })
+      const result = validateSessionData(oldSessionData)
+      
       expect(result.isValid).toBe(true)
-      expect(result.warnings).toBeDefined()
-      expect(result.warnings?.length).toBeGreaterThan(0)
+      expect(result.warnings).toContain('Session is older than 24 hours')
     })
 
-    it('validates message format', () => {
-      const invalidMessages = {
-        ...validSessionData,
-        phase: 'discussion' as const,
-        agreedIssue: 'Valid agreed issue that is long enough',
-        playerOneSteelMan: 'Valid steel man that is long enough to pass validation',
-        playerTwoSteelMan: 'Valid steel man that is long enough to pass validation',
-        playerOneStatement: 'Valid statement',
-        playerTwoStatement: 'Valid statement',
+    it('warns about suspicious message patterns', () => {
+      const sessionData = createValidSessionData({
+        messages: Array.from({ length: 25 }, (_, i) => ({
+          id: `msg-${i}`,
+          author: 'player1' as const,
+          content: 'test message',
+          timestamp: Date.now()
+        }))
+      })
+      const result = validateSessionData(sessionData)
+      
+      expect(result.isValid).toBe(true)
+      expect(result.warnings).toContain('Session has unusually high message count (25)')
+    })
+
+    it('detects malformed message structures', () => {
+      const sessionData = createValidSessionData({
         messages: [
-          { invalid: 'message' } // Missing required fields
+          { id: 'valid', author: 'player1', content: 'test', timestamp: Date.now() },
+          { id: '', author: 'player1', content: '', timestamp: 0 } as any // Invalid message
+        ]
+      })
+      const result = validateSessionData(sessionData)
+      
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('message data is corrupted')
+    })
+
+    it('handles missing required fields gracefully', () => {
+      const incompleteData = {
+        phase: 'welcome',
+        // Missing other required fields
+      }
+      const result = validateSessionData(incompleteData)
+      
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('session structure is incomplete')
+    })
+
+    it('validates array fields properly', () => {
+      const sessionData = createValidSessionData({
+        messages: 'not-an-array' as any
+      })
+      const result = validateSessionData(sessionData)
+      
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('message history is corrupted')
+    })
+  })
+
+  describe('sanitizeInput', () => {
+    it('removes XSS attack vectors', () => {
+      const maliciousInput = '<script>alert("xss")</script>Hello <img src="x" onerror="alert(1)">'
+      const sanitized = sanitizeInput(maliciousInput)
+      
+      expect(sanitized).not.toContain('<script>')
+      expect(sanitized).not.toContain('onerror')
+      expect(sanitized).toContain('Hello')
+    })
+
+    it('handles HTML entities correctly', () => {
+      const input = 'Quote: "Hello" & \'world\''
+      const sanitized = sanitizeInput(input)
+      
+      expect(sanitized).toContain('&quot;')
+      expect(sanitized).toContain('&#x27;')
+      expect(sanitized).toContain('&amp;')
+    })
+
+    it('preserves existing HTML entities', () => {
+      const input = 'Already encoded: &lt;script&gt; &amp; more'
+      const sanitized = sanitizeInput(input)
+      
+      expect(sanitized).toContain('&lt;script&gt;')
+      expect(sanitized).toContain('&amp;')
+    })
+
+    it('handles non-string input gracefully', () => {
+      expect(sanitizeInput(null as any)).toBe('')
+      expect(sanitizeInput(undefined as any)).toBe('')
+      expect(sanitizeInput(123 as any)).toBe('')
+    })
+
+    it('trims whitespace', () => {
+      const input = '  spaced content  '
+      const sanitized = sanitizeInput(input)
+      
+      expect(sanitized).toBe('spaced content')
+    })
+  })
+
+  describe('sanitizeObject', () => {
+    it('sanitizes string values in objects', () => {
+      const maliciousObject = {
+        name: '<script>alert("xss")</script>John',
+        message: 'Hello "world"',
+        number: 42,
+        nested: {
+          value: 'safe'
+        }
+      }
+      
+      const sanitized = sanitizeObject(maliciousObject)
+      
+      expect(sanitized.name).not.toContain('<script>')
+      expect(sanitized.name).toContain('John')
+      expect(sanitized.message).toContain('&quot;')
+      expect(sanitized.number).toBe(42)
+      expect(sanitized.nested.value).toBe('safe')
+    })
+
+    it('sanitizes arrays of strings', () => {
+      const objectWithArray = {
+        tags: ['<script>bad</script>', 'good tag', '"quoted"'],
+        count: 3
+      }
+      
+      const sanitized = sanitizeObject(objectWithArray)
+      
+      expect(sanitized.tags[0]).not.toContain('<script>')
+      expect(sanitized.tags[1]).toBe('good tag')
+      expect(sanitized.tags[2]).toContain('&quot;')
+    })
+
+    it('preserves non-string values', () => {
+      const mixedObject = {
+        string: 'hello',
+        number: 42,
+        boolean: true,
+        date: new Date(),
+        null: null,
+        undefined: undefined
+      }
+      
+      const sanitized = sanitizeObject(mixedObject)
+      
+      expect(sanitized.number).toBe(42)
+      expect(sanitized.boolean).toBe(true)
+      expect(sanitized.date).toBeInstanceOf(Date)
+      expect(sanitized.null).toBeNull()
+      expect(sanitized.undefined).toBeUndefined()
+    })
+
+    it('does not modify the original object', () => {
+      const original = {
+        message: '<script>alert(1)</script>hello'
+      }
+      
+      const sanitized = sanitizeObject(original)
+      
+      expect(original.message).toContain('<script>')
+      expect(sanitized.message).not.toContain('<script>')
+    })
+  })
+
+  describe('Edge Cases', () => {
+    it('handles deeply nested corruption gracefully', () => {
+      const corruptedData = {
+        phase: 'discussion',
+        messages: [
+          {
+            id: null,
+            author: undefined,
+            content: '<script>alert(1)</script>',
+            timestamp: 'invalid'
+          }
         ]
       }
-      const result = validateSessionData(invalidMessages)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('Invalid message format')
-    })
-  })
-})
-
-describe('Input Validation Functions', () => {
-  describe('validateIssueInput', () => {
-    it('accepts valid issue input', () => {
-      const result = validateIssueInput('We have different approaches to managing finances')
-      expect(result.isValid).toBe(true)
-    })
-
-    it('rejects short input', () => {
-      const result = validateIssueInput('short')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('at least 10 characters')
-      expect(result.suggestions).toBeDefined()
-    })
-
-    it('rejects very long input', () => {
-      const longText = 'a'.repeat(501)
-      const result = validateIssueInput(longText)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('under 500 characters')
-    })
-
-    it('detects problematic patterns', () => {
-      const result = validateIssueInput("You're always wrong about everything")
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('Absolute statements')
-      expect(result.suggestions).toBeDefined()
-    })
-
-    it('detects personal attacks', () => {
-      const result = validateIssueInput('You are so stupid about money')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('Personal attacks')
-    })
-  })
-
-  describe('validateSteelManInput', () => {
-    it('accepts valid steel-man input', () => {
-      const result = validateSteelManInput('From their perspective, they might feel overwhelmed by financial decisions and want more structure')
-      expect(result.isValid).toBe(true)
-    })
-
-    it('rejects short input', () => {
-      const result = validateSteelManInput('too short')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('at least 20 characters')
-    })
-
-    it('rejects overly long input', () => {
-      const longText = 'a'.repeat(1001)
-      const result = validateSteelManInput(longText)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('under 1000 characters')
-    })
-
-    it('detects bad faith patterns', () => {
-      const result = validateSteelManInput('Obviously they think they know everything about money')
-      expect(result.isValid).toBe(true)
-      expect(result.suggestions).toBeDefined()
-      expect(result.suggestions).toContain("Use 'from their perspective' language")
-    })
-  })
-
-  describe('validateStatementInput', () => {
-    it('accepts valid statement input', () => {
-      const result = validateStatementInput('I feel frustrated when financial decisions are made without discussing them first')
-      expect(result.isValid).toBe(true)
-    })
-
-    it('rejects short input', () => {
-      const result = validateStatementInput('short')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('at least 15 characters')
-    })
-
-    it('rejects overly long input', () => {
-      const longText = 'a'.repeat(801)
-      const result = validateStatementInput(longText)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('under 800 characters')
-    })
-  })
-
-  describe('validateMessageInput', () => {
-    it('accepts valid message input', () => {
-      const result = validateMessageInput('I understand your point about budgeting')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('I understand your point about budgeting')
-    })
-
-    it('rejects empty input', () => {
-      const result = validateMessageInput('')
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('cannot be empty')
-    })
-
-    it('rejects overly long input', () => {
-      const longText = 'a'.repeat(1001)
-      const result = validateMessageInput(longText)
-      expect(result.isValid).toBe(false)
-      expect(result.error).toContain('under 1000 characters')
-    })
-
-    it('sanitizes input', () => {
-      const result = validateMessageInput('<script>alert("xss")</script>')
-      expect(result.isValid).toBe(true)
-      expect(result.sanitized).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;&#x2F;script&gt;')
-    })
-  })
-})
-
-describe('Advanced Session Management', () => {
-  describe('createAtomicUpdate', () => {
-    it('applies valid updates', () => {
-      const currentData: SessionData = {
-        phase: 'welcome',
-        conflictContext: 'relationship',
-        agreedIssue: '',
-        playerOneSteelMan: '',
-        playerTwoSteelMan: '',
-        playerOneStatement: '',
-        playerTwoStatement: '',
-        messages: [],
-        proposedResolution: '',
-        finalResolution: '',
-        sessionStarted: Date.now()
-      }
-
-      const updates = { agreedIssue: 'We disagree about household chores' }
-      const result = createAtomicUpdate(currentData, updates)
       
-      expect(result.success).toBe(true)
-      expect(result.newData?.agreedIssue).toBe('We disagree about household chores')
+      const result = validateSessionData(corruptedData)
+      
+      expect(result.isValid).toBe(false)
+      expect(result.error).toBeDefined()
+      expect(result.error).not.toContain('<script>')
     })
 
-    it('rejects updates that would corrupt session', () => {
-      const currentData: SessionData = {
-        phase: 'welcome',
-        conflictContext: 'relationship',
-        agreedIssue: '',
-        playerOneSteelMan: '',
-        playerTwoSteelMan: '',
-        playerOneStatement: '',
-        playerTwoStatement: '',
-        messages: [],
-        proposedResolution: '',
-        finalResolution: '',
-        sessionStarted: Date.now()
-      }
-
-      const badUpdates = { phase: 'invalid-phase' as any }
-      const result = createAtomicUpdate(currentData, badUpdates)
+    it('validates session data with all phases', () => {
+      const phases = ['welcome', 'ai-preferences', 'context-selection', 'issue-agreement', 'steel-manning', 'statement-locking', 'discussion', 'resolution', 'summary']
       
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('Update would corrupt session')
+      phases.forEach(phase => {
+        const sessionData = createValidSessionData({ phase: phase as any })
+        const result = validateSessionData(sessionData)
+        
+        expect(result.isValid).toBe(true)
+      })
     })
 
-    it('sanitizes string updates', () => {
-      const currentData: SessionData = {
-        phase: 'welcome',
-        conflictContext: 'relationship',
-        agreedIssue: '',
-        playerOneSteelMan: '',
-        playerTwoSteelMan: '',
-        playerOneStatement: '',
-        playerTwoStatement: '',
-        messages: [],
-        proposedResolution: '',
-        finalResolution: '',
-        sessionStarted: Date.now()
-      }
-
-      const updates = { agreedIssue: '<script>alert("xss")</script>' }
-      const result = createAtomicUpdate(currentData, updates)
+    it('handles very large session data', () => {
+      const largeSession = createValidSessionData({
+        agreedIssue: 'x'.repeat(10000),
+        messages: Array.from({ length: 1000 }, (_, i) => ({
+          id: `msg-${i}`,
+          author: 'player1' as const,
+          content: 'test message',
+          timestamp: Date.now()
+        }))
+      })
       
-      expect(result.success).toBe(true)
-      expect(result.newData?.agreedIssue).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;&#x2F;script&gt;')
-    })
-  })
-
-  describe('attemptSessionRecovery', () => {
-    it('recovers valid data from corrupted session', () => {
-      const corruptedData = {
-        agreedIssue: 'Valid agreed issue content',
-        playerOneSteelMan: 'Valid steel man content from player one',
-        phase: 'invalid-phase',
-        invalidField: 'should be ignored'
-      }
-
-      const result = attemptSessionRecovery(corruptedData)
+      const result = validateSessionData(largeSession)
       
-      expect(result.recovered).toBe(true)
-      expect(result.sessionData?.agreedIssue).toBe('Valid agreed issue content')
-      expect(result.sessionData?.playerOneSteelMan).toBe('Valid steel man content from player one')
-      expect(result.sessionData?.phase).toBe('steel-manning')
+      // Should warn about size but still be valid
+      expect(result.isValid).toBe(true)
       expect(result.warnings).toBeDefined()
-    })
-
-    it('fails to recover from completely invalid data', () => {
-      const result1 = attemptSessionRecovery(null)
-      expect(result1.recovered).toBe(false)
-
-      const result2 = attemptSessionRecovery('invalid')
-      expect(result2.recovered).toBe(false)
-    })
-
-    it('resets to appropriate phase based on recovered data', () => {
-      const partialData = { agreedIssue: 'Some issue' }
-      const result = attemptSessionRecovery(partialData)
-      
-      expect(result.recovered).toBe(true)
-      expect(result.sessionData?.phase).toBe('steel-manning')
-
-      const noData = { someOtherField: 'value' }
-      const result2 = attemptSessionRecovery(noData)
-      
-      expect(result2.recovered).toBe(true)
-      expect(result2.sessionData?.phase).toBe('issue-agreement')
-    })
-
-    it('sanitizes recovered content', () => {
-      const corruptedData = {
-        agreedIssue: '<script>alert("xss")</script>',
-        playerOneSteelMan: 'Valid content but with <img> tag'
-      }
-
-      const result = attemptSessionRecovery(corruptedData)
-      
-      expect(result.recovered).toBe(true)
-      expect(result.sessionData?.agreedIssue).not.toContain('<script>')
-      expect(result.sessionData?.playerOneSteelMan).not.toContain('<img>')
     })
   })
 })

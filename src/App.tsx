@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Suspense, lazy } from 'react'
+import { useState, useEffect, useCallback, Suspense, lazy, useRef } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { analyticsService } from './services/analytics'
 import { sessionHistoryService } from './services/sessionHistory'
 import { machineLearningService } from './services/mlServiceOptimized'
 import { CONFLICT_CONTEXTS } from './services/conflictContexts'
+import { useFocusManagement, useSkipLinks, useScreenReaderAnnouncements } from './hooks/useAccessibility'
 import ErrorBoundary from './components/ErrorBoundary'
 import PhaseErrorBoundary from './components/PhaseErrorBoundary'
 import ConflictContextSelector from './components/ConflictContextSelector'
@@ -64,20 +65,39 @@ function App() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [validationError, setValidationError] = useState<string>('')
+  const [sessionWarnings, setSessionWarnings] = useState<string[]>([])
   
-  // Initialize loading state and validate session
+  // Accessibility hooks
+  const headingRef = useFocusManagement(sessionData?.phase || 'welcome')
+  const { announce, AnnouncementDiv } = useScreenReaderAnnouncements()
+  useSkipLinks()
+  
+  // Initialize session with validation and recovery
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (sessionData) {
-        const validation = validateSessionData(sessionData)
-        if (!validation.isValid) {
-          setValidationError(validation.error || 'Session validation failed')
+    const initializeSession = async () => {
+      try {
+        if (sessionData) {
+          const validation = validateSessionData(sessionData)
+          if (!validation.isValid) {
+            setValidationError(validation.error || 'Session validation failed')
+            announce('Session validation failed. Please reset to continue.', 'assertive')
+          } else if (validation.warnings) {
+            setSessionWarnings(validation.warnings)
+            announce(`Session recovered with ${validation.warnings.length} warning${validation.warnings.length > 1 ? 's' : ''}`, 'polite')
+          }
         }
+      } catch (error) {
+        const errorMsg = 'Failed to initialize session. This might be a browser storage issue.'
+        setValidationError(errorMsg)
+        announce(errorMsg, 'assertive')
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
-    }, 100)
+    }
+    
+    const timer = setTimeout(initializeSession, 100)
     return () => clearTimeout(timer)
-  }, [sessionData])
+  }, [sessionData, announce])
 
   const [currentPlayer] = useState<PlayerRole>(() => {
     // Try to recover existing player role, or assign new one
@@ -106,9 +126,23 @@ function App() {
   }
 
   const updateSessionData = useCallback((updates: Partial<SessionData>) => {
-    const newSessionData = { ...safeSessionData, ...updates } as SessionData
-    setSessionData(newSessionData)
-  }, [safeSessionData, setSessionData])
+    setSessionData(current => {
+      const currentData = current || {
+        phase: 'welcome' as const,
+        conflictContext: 'relationship' as const,
+        agreedIssue: '',
+        playerOneSteelMan: '',
+        playerTwoSteelMan: '',
+        playerOneStatement: '',
+        playerTwoStatement: '',
+        messages: [],
+        proposedResolution: '',
+        finalResolution: '',
+        sessionStarted: Date.now()
+      }
+      return { ...currentData, ...updates } as SessionData
+    })
+  }, [setSessionData])
 
   const startSession = useCallback(() => {
     updateSessionData({ 
@@ -117,24 +151,37 @@ function App() {
     })
   }, [updateSessionData])
 
-  const resetSession = useCallback(() => {
-    localStorage.removeItem('mixitfixit-player-role')
-    setValidationError('')
-    clearSession() // Use enhanced session clearing
-    setSessionData({
-      phase: 'welcome',
-      conflictContext: 'relationship',
-      agreedIssue: '',
-      playerOneSteelMan: '',
-      playerTwoSteelMan: '',
-      playerOneStatement: '',
-      playerTwoStatement: '',
-      messages: [],
-      proposedResolution: '',
-      finalResolution: '',
-      sessionStarted: Date.now()
-    })
-  }, [setValidationError, setSessionData])
+  const resetSession = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      localStorage.removeItem('mixitfixit-player-role')
+      setValidationError('')
+      setSessionWarnings([])
+      
+      // Clear all session data
+      clearSession()
+      
+      // Reset to fresh session
+      setSessionData({
+        phase: 'welcome',
+        conflictContext: 'relationship',
+        agreedIssue: '',
+        playerOneSteelMan: '',
+        playerTwoSteelMan: '',
+        playerOneStatement: '',
+        playerTwoStatement: '',
+        messages: [],
+        proposedResolution: '',
+        finalResolution: '',
+        sessionStarted: Date.now()
+      })
+    } catch (error) {
+      console.error('Failed to reset session:', error)
+      setValidationError('Failed to reset session. Please refresh the page.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [setSessionData])
 
   const enableMultiplayer = () => {
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
@@ -261,13 +308,18 @@ function App() {
   if (isLoading) {
     return (
       <ErrorBoundary>
-        <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
           <Card className="max-w-md mx-auto">
-            <CardContent className="flex items-center gap-3 p-6">
-              <CircleNotch size={24} className="animate-spin text-primary" />
-              <p className="text-muted-foreground">
-                Loading the digital thunderdome...
-              </p>
+            <CardContent className="flex flex-col items-center gap-4 p-6">
+              <CircleNotch size={32} className="animate-spin text-primary" />
+              <div className="text-center">
+                <p className="font-medium mb-1">
+                  Loading MixitFixit
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Preparing your conflict resolution session...
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -284,26 +336,33 @@ function App() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-destructive">
                 <Lock size={24} />
-                Session Corrupted
+                Session Issues Detected
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                Looks like something went sideways with your session data. Even digital relationships have trust issues.
+                Something went wrong with your session. Don't worry - this happens sometimes with browser storage.
               </p>
               
               <div className="p-3 bg-muted rounded text-sm">
-                {validationError}
+                <strong>What happened:</strong> {validationError}
               </div>
               
-              <div className="flex gap-2">
-                <Button onClick={resetSession} variant="default">
-                  Start Fresh
+              <div className="flex flex-col gap-2">
+                <Button onClick={resetSession} variant="default" disabled={isLoading}>
+                  {isLoading ? 'Starting Fresh...' : 'Start Fresh Session'}
+                </Button>
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  variant="outline"
+                  disabled={isLoading}
+                >
+                  Refresh Page
                 </Button>
               </div>
               
               <p className="text-xs text-muted-foreground">
-                Sometimes the best solution is to burn it all down and start over.
+                Starting fresh will clear any saved progress but get you back to working.
               </p>
             </CardContent>
           </Card>
@@ -396,17 +455,23 @@ function App() {
                 </div>
 
                 <div className="pt-4 border-t">
-                  <Button onClick={startSession} size="lg" className="w-full text-sm sm:text-base mb-3">
+                  <Button 
+                    onClick={startSession} 
+                    size="lg" 
+                    className="w-full text-sm sm:text-base mb-3"
+                    aria-label="Start a new conflict resolution session"
+                  >
                     Enter the Digital Thunderdome
                   </Button>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Dashboard options">
                     <Button 
                       onClick={() => updateSessionData({ phase: 'pattern-recognition' })} 
                       variant="outline" 
                       size="lg" 
                       className="text-sm sm:text-base"
+                      aria-label="View pattern analysis dashboard"
                     >
-                      <Brain size={16} className="mr-2" />
+                      <Brain size={16} className="mr-2" aria-hidden="true" />
                       Pattern Analysis
                     </Button>
                     <Button 
@@ -414,8 +479,9 @@ function App() {
                       variant="outline" 
                       size="lg" 
                       className="text-sm sm:text-base"
+                      aria-label="View couples progress dashboard"
                     >
-                      <Heart size={16} className="mr-2" />
+                      <Heart size={16} className="mr-2" aria-hidden="true" />
                       Couples Dashboard
                     </Button>
                     <Button 
@@ -423,8 +489,9 @@ function App() {
                       variant="outline" 
                       size="lg" 
                       className="text-sm sm:text-base col-span-1 sm:col-span-2"
+                      aria-label="View machine learning insights and training"
                     >
-                      <TrendUp size={16} className="mr-2" />
+                      <TrendUp size={16} className="mr-2" aria-hidden="true" />
                       ML Insights & Training
                     </Button>
                   </div>
@@ -444,29 +511,31 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
-        <header className="border-b bg-card">
+        <AnnouncementDiv />
+        <header className="border-b bg-card" role="banner">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 <h1 className="text-xl sm:text-2xl font-bold truncate">MixitFixit</h1>
-                <Badge variant="outline" className="text-xs whitespace-nowrap">
+                <Badge variant="outline" className="text-xs whitespace-nowrap" aria-label={`Current player: ${currentPlayer === 'player1' ? 'Player 1' : 'Player 2'}`}>
                   {currentPlayer === 'player1' ? 'P1' : 'P2'}
                 </Badge>
                 {hasActiveSession && (
-                  <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
+                  <Badge variant="secondary" className="text-xs hidden sm:inline-flex" aria-label="Session has been recovered from previous visit">
                     Session Recovered
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <nav className="flex items-center gap-2" role="navigation" aria-label="Main navigation">
                 {safeSessionData.messages.length > 0 && (
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={viewAnalytics}
                     className="text-xs sm:text-sm"
+                    aria-label="View session analytics"
                   >
-                    <ChartBar size={16} className="mr-1" />
+                    <ChartBar size={16} className="mr-1" aria-hidden="true" />
                     Analytics
                   </Button>
                 )}
@@ -475,8 +544,9 @@ function App() {
                   size="sm" 
                   onClick={viewPatternRecognition}
                   className="text-xs sm:text-sm"
+                  aria-label="View relationship patterns"
                 >
-                  <Brain size={16} className="mr-1" />
+                  <Brain size={16} className="mr-1" aria-hidden="true" />
                   Patterns
                 </Button>
                 <Button 
@@ -484,8 +554,9 @@ function App() {
                   size="sm" 
                   onClick={viewCouplesDashboard}
                   className="text-xs sm:text-sm"
+                  aria-label="View couples dashboard"
                 >
-                  <Heart size={16} className="mr-1" />
+                  <Heart size={16} className="mr-1" aria-hidden="true" />
                   Couples
                 </Button>
                 <Button 
@@ -493,8 +564,9 @@ function App() {
                   size="sm" 
                   onClick={viewMLInsights}
                   className="text-xs sm:text-sm"
+                  aria-label="View machine learning insights"
                 >
-                  <TrendUp size={16} className="mr-1" />
+                  <TrendUp size={16} className="mr-1" aria-hidden="true" />
                   ML
                 </Button>
                 <Button 
@@ -502,14 +574,21 @@ function App() {
                   size="sm" 
                   onClick={viewHistory}
                   className="text-xs sm:text-sm"
+                  aria-label="View session history"
                 >
-                  <History size={16} className="mr-1" />
+                  <History size={16} className="mr-1" aria-hidden="true" />
                   History
                 </Button>
-                <Button variant="outline" size="sm" onClick={resetSession} className="text-xs sm:text-sm">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={resetSession} 
+                  className="text-xs sm:text-sm"
+                  aria-label="Reset current session"
+                >
                   Reset
                 </Button>
-              </div>
+              </nav>
             </div>
             
             <div className="mt-3 sm:mt-4">
@@ -521,61 +600,107 @@ function App() {
                   {PHASE_PROGRESS[safeSessionData.phase]}%
                 </span>
               </div>
-              <Progress value={PHASE_PROGRESS[safeSessionData.phase]} className="w-full" />
+              <Progress 
+                value={PHASE_PROGRESS[safeSessionData.phase]} 
+                className="w-full" 
+                aria-label={`Session progress: ${PHASE_PROGRESS[safeSessionData.phase]}% complete`}
+              />
             </div>
           </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+        {/* Session warnings display */}
+        {sessionWarnings.length > 0 && (
+          <div className="bg-warning/10 border-b border-warning/20" role="alert" aria-live="polite">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2">
+              <div className="text-sm text-warning-foreground">
+                <strong>Session recovered with warnings:</strong> {sessionWarnings[0]}
+                {sessionWarnings.length > 1 && (
+                  <span className="text-xs ml-2">
+                    (+{sessionWarnings.length - 1} more)
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8" role="main">
           {safeSessionData.phase === 'ai-preferences' && (
             <PhaseErrorBoundary phase="AI Preferences" onReset={resetSession}>
-              <div className="space-y-6">
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold mb-2">AI Personality Setup</h2>
-                  <p className="text-muted-foreground">
-                    Before we dive into conflict resolution, let's customize how the AI communicates with you.
-                    This is crucial for a successful session.
-                  </p>
+              <section aria-labelledby="ai-preferences-heading">
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h2 id="ai-preferences-heading" ref={headingRef} className="text-2xl font-bold mb-2 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" tabIndex={-1}>
+                      AI Personality Setup
+                    </h2>
+                    <p className="text-muted-foreground">
+                      Before we dive into conflict resolution, let's customize how the AI communicates with you.
+                      This is crucial for a successful session.
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <AIPersonalityTesting 
+                      onComplete={(personality) => {
+                        announce('AI personality selected. Continuing to context selection.')
+                        // Auto-continue after A/B test
+                        setTimeout(() => updateSessionData({ phase: 'context-selection' }), 2000)
+                      }}
+                    />
+                    <AIPreferencesSettings />
+                  </div>
+                  
+                  <div className="flex justify-center pt-4">
+                    <Button 
+                      onClick={() => {
+                        announce('Skipping to context selection')
+                        updateSessionData({ phase: 'context-selection' })
+                      }}
+                      size="lg"
+                      variant="outline"
+                    >
+                      Skip to Context Selection
+                    </Button>
+                  </div>
                 </div>
-                
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <AIPersonalityTesting 
-                    onComplete={(personality) => {
-                      // Auto-continue after A/B test
-                      setTimeout(() => updateSessionData({ phase: 'context-selection' }), 2000)
-                    }}
-                  />
-                  <AIPreferencesSettings />
-                </div>
-                
-                <div className="flex justify-center pt-4">
-                  <Button 
-                    onClick={() => updateSessionData({ phase: 'context-selection' })}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Skip to Context Selection
-                  </Button>
-                </div>
-              </div>
+              </section>
             </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'context-selection' && (
             <PhaseErrorBoundary phase="Context Selection" onReset={resetSession}>
-              <ConflictContextSelector 
-                sessionData={safeSessionData}
-                updateSessionData={updateSessionData}
-              />
+              <section aria-labelledby="context-selection-heading">
+                <h2 id="context-selection-heading" ref={headingRef} className="sr-only focus:not-sr-only focus:text-2xl focus:font-bold focus:mb-4" tabIndex={-1}>
+                  Choose Your Arena
+                </h2>
+                <ConflictContextSelector 
+                  sessionData={safeSessionData}
+                  updateSessionData={(updates) => {
+                    announce('Context selected. Moving to issue agreement.')
+                    updateSessionData(updates)
+                  }}
+                />
+              </section>
             </PhaseErrorBoundary>
           )}
 
           {safeSessionData.phase === 'issue-agreement' && (
             <PhaseErrorBoundary phase="Issue Agreement" onReset={resetSession}>
-              <IssueAgreement 
-                sessionData={safeSessionData}
-                updateSessionData={updateSessionData}
-              />
+              <section aria-labelledby="issue-agreement-heading">
+                <h2 id="issue-agreement-heading" ref={headingRef} className="sr-only focus:not-sr-only focus:text-2xl focus:font-bold focus:mb-4" tabIndex={-1}>
+                  Issue Agreement
+                </h2>
+                <IssueAgreement 
+                  sessionData={safeSessionData}
+                  updateSessionData={(updates) => {
+                    if (updates.phase === 'steel-manning') {
+                      announce('Issue agreed upon. Moving to steel-manning phase.')
+                    }
+                    updateSessionData(updates)
+                  }}
+                />
+              </section>
             </PhaseErrorBoundary>
           )}
           
