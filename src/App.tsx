@@ -8,6 +8,9 @@ import { analyticsService } from './services/analytics'
 import { sessionHistoryService } from './services/sessionHistory'
 import { machineLearningService } from './services/mlServiceOptimized'
 import { useSkipLinks, useScreenReaderAnnouncements } from './hooks/useAccessibility'
+import { safeAsync, safeEventHandler, requireData } from './utils/errorPrevention'
+import { performanceMonitor } from './utils/performanceMonitor'
+import { appConfig } from './config/env'
 import ErrorBoundary from './components/ErrorBoundary'
 import WelcomeScreen from './components/WelcomeScreen'
 import SessionHeader from './components/SessionHeader'
@@ -35,10 +38,25 @@ function App() {
   
   // Initialize session with validation and recovery
   useEffect(() => {
-    const initializeSession = async () => {
+    const initializeSession = safeEventHandler(async () => {
+      const endSessionInit = performanceMonitor.startTiming('session-init')
+      
       try {
+        setIsLoading(true)
+        performanceMonitor.mark('session-init-start')
+        
         // Clean up any legacy localStorage data
-        migrateLegacySessionData()
+        const migrationResult = await safeAsync(
+          () => Promise.resolve(migrateLegacySessionData()),
+          undefined,
+          'session migration'
+        )
+        
+        if (!migrationResult.success && appConfig.VITE_DEV_SHOW_WARNINGS) {
+          console.warn('Session migration had issues:', migrationResult.error)
+        }
+
+        performanceMonitor.mark('migration-complete')
 
         // Validate current session
         const validation = validateAndRecoverSession()
@@ -50,14 +68,39 @@ function App() {
           setSessionWarnings(validation.warnings)
           announce(`Session recovered with ${validation.warnings.length} warning${validation.warnings.length > 1 ? 's' : ''}`, 'polite')
         }
+        
+        performanceMonitor.mark('session-init-complete')
+        performanceMonitor.measure('session-init-duration', 'session-init-start', 'session-init-complete')
+        
       } catch (error) {
         const errorMsg = 'Failed to initialize session. This might be a browser storage issue.'
         setValidationError(errorMsg)
         announce(errorMsg, 'assertive')
       } finally {
+        endSessionInit()
         setIsLoading(false)
+        
+        // Log performance metrics in development
+        if (appConfig.VITE_APP_ENVIRONMENT === 'development') {
+          setTimeout(() => {
+            const metrics = performanceMonitor.getMetrics()
+            const validation = performanceMonitor.validateDeploymentReadiness()
+            
+            if (!validation.isReady || validation.warnings.length > 0) {
+              console.group('🚀 Deployment Readiness Check')
+              console.log(`Status: ${validation.isReady ? '✅ Ready' : '❌ Issues Found'}`)
+              if (validation.issues.length > 0) {
+                console.warn('Issues:', validation.issues)
+              }
+              if (validation.warnings.length > 0) {
+                console.warn('Warnings:', validation.warnings)
+              }
+              console.groupEnd()
+            }
+          }, 2000) // Wait for initial metrics to stabilize
+        }
       }
-    }
+    }, 'session initialization')
     
     const timer = setTimeout(initializeSession, 100)
     return () => clearTimeout(timer)
@@ -78,27 +121,40 @@ function App() {
     sessionStarted: Date.now()
   }
 
-  const startSession = useCallback(() => {
-    updateSession({ 
-      phase: 'ai-preferences',
-      sessionStarted: Date.now() 
-    })
-  }, [updateSession])
+  const startSession = useCallback(safeEventHandler(() => {
+    try {
+      const safeSessionData = requireData(sessionData, 'sessionData')
+      updateSession({ 
+        phase: 'ai-preferences',
+        sessionStarted: Date.now() 
+      })
+    } catch (error) {
+      setValidationError('Cannot start session: invalid session state')
+    }
+  }, 'start session'), [updateSession, sessionData])
 
-  const handleResetSession = useCallback(async () => {
+  const handleResetSession = useCallback(safeEventHandler(async () => {
     try {
       setIsLoading(true)
       setValidationError('')
       setSessionWarnings([])
       
-      resetSession()
+      const resetResult = await safeAsync(
+        () => Promise.resolve(resetSession()),
+        undefined,
+        'session reset'
+      )
+      
+      if (!resetResult.success) {
+        throw new Error(resetResult.error || 'Reset failed')
+      }
     } catch (error) {
       console.error('Failed to reset session:', error)
       setValidationError('Failed to reset session. Please refresh the page.')
     } finally {
       setIsLoading(false)
     }
-  }, [resetSession])
+  }, 'reset session'), [resetSession])
 
   const handleEnableMultiplayer = useCallback(() => {
     enableMultiplayer()
