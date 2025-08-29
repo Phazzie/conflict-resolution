@@ -4,16 +4,33 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb, ThumbsUp, ThumbsDown, TrendUp } from '@phosphor-icons/react'
-import { PhaseProps, Message } from '../types/session'
+import { ChatCircle, Robot, User, ArrowRight, Warning, Brain, Lightbulb, ThumbsUp, ThumbsDown, TrendUp, Wifi } from '@phosphor-icons/react'
+import { PhaseProps, Message, SessionParticipant } from '../types/session'
 import { validateMessageInput } from '../utils/validation'
 import { unifiedAIService, type AIAnalysisResult, type ConversationContext } from '../services/aiServiceUnified'
 import { patternRecognitionService } from '../services/patternRecognition'
 import { machineLearningService, PatternPrediction } from '../services/machineLearning'
 import SessionPatternInsights from './SessionPatternInsights'
+import TypingIndicator from './TypingIndicator'
 import { toast } from 'sonner'
 
-function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: PhaseProps) {
+interface DiscussionPhaseProps extends PhaseProps {
+  // Multiplayer support
+  isMultiplayer?: boolean
+  participants?: SessionParticipant[]
+  onSendMessage?: (message: Message) => void
+  onTypingStatusChange?: (isTyping: boolean) => void
+}
+
+function DiscussionPhase({ 
+  sessionData, 
+  currentPlayer, 
+  updateSessionData,
+  isMultiplayer = false,
+  participants = [],
+  onSendMessage,
+  onTypingStatusChange
+}: DiscussionPhaseProps) {
   const [currentMessage, setCurrentMessage] = useState('')
   const [isAIAnalyzing, setIsAIAnalyzing] = useState(false)
   const [validationError, setValidationError] = useState<string>('')
@@ -24,7 +41,9 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
     messageIndex: number
     predictions: PatternPrediction[]
   } | null>(null)
+  const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -34,10 +53,42 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
     scrollToBottom()
   }, [sessionData.messages, scrollToBottom])
 
-  // Handle input changes
+  // Handle input changes with typing indicators
   const handleInputChange = useCallback((value: string) => {
     setCurrentMessage(value)
     setValidationError('')
+    
+    // Handle typing indicators for multiplayer
+    if (isMultiplayer && onTypingStatusChange) {
+      const wasTyping = isTyping
+      const nowTyping = value.trim().length > 0
+      
+      if (nowTyping !== wasTyping) {
+        setIsTyping(nowTyping)
+        onTypingStatusChange(nowTyping)
+      }
+      
+      // Clear typing status after a delay
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+      
+      if (nowTyping) {
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsTyping(false)
+          onTypingStatusChange(false)
+        }, 3000) // Stop typing indicator after 3 seconds of inactivity
+      }
+    }
+  }, [isMultiplayer, onTypingStatusChange, isTyping])
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
   }, [])
 
   const sendMessage = useCallback(async () => {
@@ -91,10 +142,23 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
       newMessage.detectedPatterns = mlPredictions.map(p => p.pattern)
       newMessage.mlConfidence = mlPredictions.length > 0 ? Math.max(...mlPredictions.map(p => p.confidence)) : 0
 
-      const updatedMessages = [...sessionData.messages, newMessage]
       
-      // Update session data
+      // Update session data locally
       updateSessionData({ messages: updatedMessages })
+      
+      // Send message to multiplayer peers if enabled
+      if (isMultiplayer && onSendMessage) {
+        onSendMessage(newMessage)
+      }
+      
+      // Stop typing indicator
+      if (isMultiplayer && onTypingStatusChange) {
+        setIsTyping(false)
+        onTypingStatusChange(false)
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current)
+        }
+      }
       
       // Store predictions for feedback
       if (mlPredictions.length > 0) {
@@ -134,9 +198,15 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
         
         // Add AI message after a short delay for better UX
         setTimeout(() => {
+          const aiUpdatedMessages = [...updatedMessages, aiMessage]
           updateSessionData({ 
-            messages: [...updatedMessages, aiMessage] 
+            messages: aiUpdatedMessages
           })
+          
+          // Also send AI message to multiplayer peers
+          if (isMultiplayer && onSendMessage) {
+            onSendMessage(aiMessage)
+          }
         }, 1000)
       }
 
@@ -388,10 +458,21 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
           <CardTitle className="flex items-center gap-2">
             <ChatCircle size={24} />
             Moderated Discussion: Now You Can Argue (But Smartly)
+            {isMultiplayer && (
+              <Badge variant="secondary" className="ml-2 flex items-center gap-1">
+                <Wifi size={12} />
+                Live Session
+              </Badge>
+            )}
           </CardTitle>
           <p className="text-muted-foreground">
             Chat away, but remember - our AI referee is watching and will call out your BS. 
             Try to stay focused on the actual issue.
+            {isMultiplayer && participants.length > 0 && (
+              <span className="block text-sm mt-1">
+                {participants.filter(p => p.isOnline).length} participant(s) online
+              </span>
+            )}
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -511,6 +592,14 @@ function DiscussionPhase({ sessionData, currentPlayer, updateSessionData }: Phas
               )}
               
               <div ref={messagesEndRef} />
+              
+              {/* Typing Indicator for Multiplayer */}
+              {isMultiplayer && participants.length > 0 && (
+                <TypingIndicator 
+                  participants={participants}
+                  currentPlayer={currentPlayer}
+                />
+              )}
             </div>
 
             {/* Message Input */}

@@ -10,7 +10,7 @@ import { safeAsync, safeEventHandler, requireData } from './utils/errorPreventio
 import { performanceMonitor } from './utils/performanceMonitor'
 import { appConfig } from './config/env'
 import ErrorBoundary from './components/ErrorBoundary'
-import WelcomeScreen from './components/WelcomeScreen'
+import WelcomeScreenMultiplayer from './components/WelcomeScreenMultiplayer'
 import SessionHeader from './components/SessionHeader'
 import PhaseRenderer from './components/PhaseRenderer'
 
@@ -23,7 +23,13 @@ function App() {
     resetSession,
     enableMultiplayer,
     joinSession,
-    validateAndRecoverSession
+    validateAndRecoverSession,
+    multiplayerConnectionState,
+    sendMessage,
+    setTypingStatus,
+    disconnectMultiplayer,
+    sessionId,
+    isHost
   } = useUnifiedSession()
 
   const [isLoading, setIsLoading] = useState(true)
@@ -262,12 +268,18 @@ function App() {
   // Welcome screen
   if (!sessionData || safeSessionData.phase === 'welcome') {
     return (
-      <WelcomeScreen 
+      <WelcomeScreenMultiplayer 
         currentPlayer={playerRole || 'player1'}
         onStartSession={startSession}
         onViewPatterns={() => updateSession({ phase: 'pattern-recognition' })}
         onViewCouples={() => updateSession({ phase: 'couples-dashboard' })}
         onViewMLInsights={() => updateSession({ phase: 'ml-insights' })}
+        sessionId={sessionId}
+        isHost={isHost}
+        multiplayerConnectionState={multiplayerConnectionState}
+        onEnableMultiplayer={enableMultiplayer}
+        onJoinSession={joinSession}
+        onDisconnectMultiplayer={disconnectMultiplayer}
       />
     )
   }
@@ -297,6 +309,10 @@ function App() {
             updateSessionData={updateSession}
             onReset={handleResetSession}
             onExportAnalytics={exportAnalytics}
+            isMultiplayer={!!sessionId}
+            participants={multiplayerConnectionState.participants}
+            onSendMessage={sendMessage}
+            onTypingStatusChange={setTypingStatus}
           />
         </main>
         <Toaster />

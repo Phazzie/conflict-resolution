@@ -6,8 +6,10 @@
  */
 
 import { useKV } from '@github/spark/hooks'
-import { SessionData, PlayerRole } from '@/types/session'
+import { SessionData, PlayerRole, Message } from '@/types/session'
 import { validateSessionData, attemptSessionRecovery } from '@/utils/validation'
+import { useMultiplayerSession } from './useMultiplayerSession'
+import { useCallback } from 'react'
 
 // RULE: Everything session-related goes through useKV. No exceptions.
 // localStorage is only for truly ephemeral shit that doesn't matter if lost.
@@ -51,9 +53,85 @@ export function useUnifiedSession() {
     sessionId?: string
     isHost: boolean
     isConnected: boolean
+    enabled: boolean
   }>('mixitfixit-multiplayer', {
     isHost: false,
-    isConnected: false
+    isConnected: false,
+    enabled: false
+  })
+
+  /**
+   * Update session data with validation and multiplayer sync
+   */
+  const updateSession = useCallback((updates: Partial<SessionData>) => {
+    setSessionData(current => {
+      if (!current) return current
+      
+      const newData = { ...current, ...updates }
+      const validation = validateSessionData(newData)
+      
+      if (!validation.isValid) {
+        console.error('Session update blocked:', validation.error)
+        // Don't update if it would corrupt the session
+        return current
+      }
+      
+      // Sync to multiplayer if enabled
+      if (multiplayerState.enabled && multiplayerSync.syncSessionData) {
+        multiplayerSync.syncSessionData(updates)
+      }
+      
+      return newData
+    })
+  }, [multiplayerState.enabled])
+
+  /**
+   * Handle incoming multiplayer session updates
+   */
+  const handleMultiplayerUpdate = useCallback((updates: Partial<SessionData>) => {
+    setSessionData(current => {
+      if (!current) return current
+      
+      const newData = { ...current, ...updates }
+      const validation = validateSessionData(newData)
+      
+      if (!validation.isValid) {
+        console.error('Multiplayer update blocked:', validation.error)
+        return current
+      }
+      
+      return newData
+    })
+  }, [])
+
+  /**
+   * Handle new multiplayer messages
+   */
+  const handleMultiplayerMessage = useCallback((message: Message) => {
+    setSessionData(current => {
+      if (!current) return current
+      
+      const existingMessage = current.messages.find(m => m.id === message.id)
+      if (existingMessage) {
+        return current // Already have this message
+      }
+      
+      const updatedMessages = [...current.messages, message]
+        .sort((a, b) => a.timestamp - b.timestamp)
+      
+      return {
+        ...current,
+        messages: updatedMessages
+      }
+    })
+  }, [])
+
+  // Initialize multiplayer functionality
+  const multiplayerSync = useMultiplayerSession({
+    sessionData,
+    onSessionUpdate: handleMultiplayerUpdate,
+    onNewMessage: handleMultiplayerMessage,
+    enabled: multiplayerState.enabled
   })
 
   /**
@@ -80,6 +158,11 @@ export function useUnifiedSession() {
    * Reset everything to clean state
    */
   const resetSession = () => {
+    // Disconnect from multiplayer first
+    if (multiplayerState.enabled && multiplayerSync.disconnectFromSession) {
+      multiplayerSync.disconnectFromSession()
+    }
+    
     setSessionData({
       phase: 'welcome',
       conflictContext: 'relationship',
@@ -96,7 +179,8 @@ export function useUnifiedSession() {
     
     setMultiplayerState({
       isHost: false,
-      isConnected: false
+      isConnected: false,
+      enabled: false
     })
     
     // Don't reset player role - let them keep their assigned role
@@ -105,52 +189,80 @@ export function useUnifiedSession() {
   /**
    * Enable multiplayer hosting
    */
-  const enableMultiplayer = () => {
+  const enableMultiplayer = async (): Promise<string | null> => {
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
     
-    setMultiplayerState({
-      sessionId,
-      isHost: true,
-      isConnected: true
-    })
-    
-    updateSession({
-      isMultiplayer: true,
-      sessionId,
-      participants: [{
-        playerId: playerRole,
-        isOnline: true,
-        lastSeen: Date.now(),
-        isTyping: false
-      }]
-    })
+    try {
+      // Connect to WebSocket first
+      const connected = await multiplayerSync.connectToSession(sessionId, playerRole)
+      
+      if (!connected) {
+        throw new Error('Failed to establish multiplayer connection')
+      }
+      
+      setMultiplayerState({
+        sessionId,
+        isHost: true,
+        isConnected: true,
+        enabled: true
+      })
+      
+      updateSession({
+        isMultiplayer: true,
+        sessionId,
+        participants: [{
+          playerId: playerRole,
+          isOnline: true,
+          lastSeen: Date.now(),
+          isTyping: false
+        }]
+      })
+      
+      return sessionId
+    } catch (error) {
+      console.error('Failed to enable multiplayer:', error)
+      return null
+    }
   }
 
   /**
    * Join existing multiplayer session
    */
-  const joinSession = (sessionId: string): boolean => {
+  const joinSession = async (sessionId: string): Promise<boolean> => {
     // Basic session ID validation
     if (!sessionId || !sessionId.match(/^session-\d+-[a-z0-9]{6}$/)) {
       return false
     }
 
-    setMultiplayerState({
-      sessionId,
-      isHost: false,
-      isConnected: true
-    })
-    
-    updateSession({
-      isMultiplayer: true,
-      sessionId,
-      participants: [
-        { playerId: 'player1', isOnline: true, lastSeen: Date.now(), isTyping: false },
-        { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
-      ]
-    })
-    
-    return true
+    try {
+      // Connect to WebSocket first
+      const connected = await multiplayerSync.connectToSession(sessionId, playerRole)
+      
+      if (!connected) {
+        throw new Error('Failed to join multiplayer session')
+      }
+
+      setMultiplayerState({
+        sessionId,
+        isHost: false,
+        isConnected: true,
+        enabled: true
+      })
+      
+      updateSession({
+        isMultiplayer: true,
+        sessionId,
+        participants: [
+          { playerId: 'player1', isOnline: true, lastSeen: Date.now(), isTyping: false },
+          { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
+        ]
+      })
+      
+      return true
+    } catch (error) {
+      console.error('Failed to join session:', error)
+      return false
+    }
   }
 
   /**
@@ -203,12 +315,25 @@ export function useUnifiedSession() {
     isHost: multiplayerState.isHost,
     isConnected: multiplayerState.isConnected,
     
+    // Multiplayer connection state
+    multiplayerConnectionState: {
+      isConnected: multiplayerSync.isConnected,
+      isReconnecting: multiplayerSync.isReconnecting,
+      participants: multiplayerSync.participants,
+      connectionError: multiplayerSync.connectionError
+    },
+    
     // Actions
     updateSession,
     resetSession,
     enableMultiplayer,
     joinSession,
     validateAndRecoverSession,
+    
+    // Multiplayer actions
+    sendMessage: multiplayerSync.sendMessage,
+    setTypingStatus: multiplayerSync.setTypingStatus,
+    disconnectMultiplayer: multiplayerSync.disconnectFromSession,
     
     // Utilities
     hasActiveSession: sessionData && sessionData.phase !== 'welcome' && 

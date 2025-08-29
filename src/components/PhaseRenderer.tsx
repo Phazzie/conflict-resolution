@@ -41,6 +41,16 @@ interface PhaseRendererProps {
   updateSessionData: (updates: Partial<SessionData>) => void
   onReset: () => void
   onExportAnalytics: (data: string) => void
+  // Multiplayer support
+  isMultiplayer?: boolean
+  participants?: Array<{
+    playerId: string
+    isOnline: boolean
+    lastSeen: number
+    isTyping: boolean
+  }>
+  onSendMessage?: (message: any) => void
+  onTypingStatusChange?: (isTyping: boolean) => void
 }
 
 export default function PhaseRenderer({
@@ -48,7 +58,11 @@ export default function PhaseRenderer({
   currentPlayer,
   updateSessionData,
   onReset,
-  onExportAnalytics
+  onExportAnalytics,
+  isMultiplayer = false,
+  participants = [],
+  onSendMessage,
+  onTypingStatusChange
 }: PhaseRendererProps) {
   const headingRef = useFocusManagement(sessionData.phase)
   const { announce } = useScreenReaderAnnouncements()
@@ -188,6 +202,10 @@ export default function PhaseRenderer({
           sessionData={sessionData}
           currentPlayer={currentPlayer}
           updateSessionData={updateSessionData}
+          isMultiplayer={isMultiplayer}
+          participants={participants}
+          onSendMessage={onSendMessage}
+          onTypingStatusChange={onTypingStatusChange}
         />
       </PhaseErrorBoundary>
     )
