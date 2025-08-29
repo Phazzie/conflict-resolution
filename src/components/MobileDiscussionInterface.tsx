@@ -87,8 +87,13 @@ export default function MobileDiscussionInterface({
 
     try {
       if (!isVoiceRecording) {
-        // Start voice recognition
-        const recognition = new ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)()
+        // Start voice recognition - browser API types aren't complete for SpeechRecognition
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        if (!SpeechRecognition) {
+          throw new Error('Speech recognition not supported')
+        }
+        
+        const recognition = new SpeechRecognition()
         recognition.continuous = false
         recognition.interimResults = false
         recognition.lang = 'en-US'
@@ -97,7 +102,7 @@ export default function MobileDiscussionInterface({
           setIsVoiceRecording(true)
         }
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
           const transcript = event.results[0][0].transcript
           onMessageChange(currentMessage + (currentMessage ? ' ' : '') + transcript)
           setIsVoiceRecording(false)

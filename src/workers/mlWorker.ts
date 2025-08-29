@@ -5,25 +5,50 @@
  */
 
 // Import types for the worker
+interface MLModel {
+  accuracy: number
+  lastOptimized?: number
+  optimizationTime?: number
+  trainingData?: any[]
+}
+
+interface TrainingExample {
+  input: string
+  expectedOutput: string
+  pattern?: string
+}
+
+interface PredictionResult {
+  patterns: Array<{
+    pattern: string
+    confidence: number
+    reasoning: string
+  }>
+}
+
 interface MLWorkerMessage {
   id: string
   type: 'optimize' | 'train' | 'predict' | 'evaluate'
-  payload: any
+  payload: {
+    model?: MLModel
+    example?: TrainingExample
+    text?: string
+  }
 }
 
 interface MLWorkerResponse {
   id: string
   type: 'success' | 'error' | 'progress'
-  result?: any
+  result?: MLModel | PredictionResult | { accuracy: number; loss: number }
   error?: string
   progress?: number
 }
 
 // Simplified ML operations for the worker
 class MLWorkerService {
-  private model: any = null
+  private model: MLModel | null = null
   
-  async optimizeModel(modelData: any): Promise<any> {
+  async optimizeModel(modelData: MLModel): Promise<MLModel> {
     // Simulate heavy ML computation
     const startTime = Date.now()
     let progress = 0
@@ -46,7 +71,7 @@ class MLWorkerService {
     clearInterval(progressInterval)
     
     // Return optimized model
-    const optimizedModel = {
+    const optimizedModel: MLModel = {
       ...modelData,
       accuracy: Math.min(modelData.accuracy + Math.random() * 0.1, 0.95),
       lastOptimized: Date.now(),
@@ -56,7 +81,7 @@ class MLWorkerService {
     return optimizedModel
   }
   
-  async trainOnExample(modelData: any, example: any): Promise<any> {
+  async trainOnExample(modelData: MLModel, example: TrainingExample): Promise<MLModel> {
     // Simulate training computation
     await new Promise(resolve => setTimeout(resolve, 500))
     
@@ -67,7 +92,7 @@ class MLWorkerService {
     }
   }
   
-  async predictPattern(modelData: any, text: string): Promise<any> {
+  async predictPattern(modelData: MLModel, text: string): Promise<PredictionResult> {
     // Simple pattern prediction logic
     await new Promise(resolve => setTimeout(resolve, 100))
     
@@ -106,12 +131,15 @@ self.addEventListener('message', async (event: MessageEvent<MLWorkerMessage>) =>
     
     switch (type) {
       case 'optimize':
-        result = await mlWorker.optimizeModel(payload)
+        if (!payload.model) throw new Error('Model data required for optimization')
+        result = await mlWorker.optimizeModel(payload.model)
         break
       case 'train':
+        if (!payload.model || !payload.example) throw new Error('Model and example required for training')
         result = await mlWorker.trainOnExample(payload.model, payload.example)
         break
       case 'predict':
+        if (!payload.model || !payload.text) throw new Error('Model and text required for prediction')
         result = await mlWorker.predictPattern(payload.model, payload.text)
         break
       case 'evaluate':

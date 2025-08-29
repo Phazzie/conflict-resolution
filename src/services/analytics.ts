@@ -312,7 +312,7 @@ export class AnalyticsService {
       .map(([tactic, count]) => ({
         tactic,
         count,
-        trend: 'stable' as const // TODO: Calculate actual trends
+        trend: this.calculateTrend(historicalData, pattern.value) as 'improving' | 'worsening' | 'stable'
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
@@ -397,6 +397,42 @@ export class AnalyticsService {
     }
 
     return summary
+  }
+
+  /**
+   * Calculate trend direction for metrics over time
+   */
+  private calculateTrend(historicalData: SessionAnalytics[], currentValue: number): 'improving' | 'worsening' | 'stable' {
+    if (historicalData.length < 2) return 'stable'
+    
+    // Get recent values for trend analysis
+    const recentValues = historicalData
+      .slice(-5) // Last 5 sessions
+      .map(session => {
+        // For manipulation tactics, lower is better
+        const manipulationCount = session.manipulationDetected.length
+        return manipulationCount
+      })
+    
+    if (recentValues.length < 2) return 'stable'
+    
+    // Calculate trend using linear regression slope
+    const n = recentValues.length
+    const x = Array.from({ length: n }, (_, i) => i)
+    const y = recentValues
+    
+    const sumX = x.reduce((a, b) => a + b, 0)
+    const sumY = y.reduce((a, b) => a + b, 0)
+    const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0)
+    const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0)
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+    
+    // For manipulation tactics, negative slope is improving
+    const threshold = 0.1
+    if (slope < -threshold) return 'improving'
+    if (slope > threshold) return 'worsening'
+    return 'stable'
   }
 
   /**

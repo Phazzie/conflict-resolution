@@ -312,7 +312,8 @@ function mergeSessionUpdates(
     const currentValue = currentSession[field]
     
     if (incomingValue !== undefined && incomingValue !== currentValue) {
-      merged[field] = incomingValue as any
+      // Type assertion is safe here since field is from textFields (string keys)
+      ;(merged as any)[field] = incomingValue
       hasChanges = true
     }
   }
@@ -333,7 +334,8 @@ function mergeSessionUpdates(
   for (const field of simpleFields) {
     const incomingValue = incomingUpdates[field]
     if (incomingValue !== undefined && incomingValue !== currentSession[field]) {
-      merged[field] = incomingValue as any
+      // Type assertion is safe here since field is from simpleFields (typed keys)
+      ;(merged as any)[field] = incomingValue
       hasChanges = true
     }
   }
