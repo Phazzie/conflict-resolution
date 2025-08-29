@@ -1,10 +1,11 @@
 /**
  * Unified AI Service for MixitFixit
  * Consolidates aiAnalysis.ts and aiAnalyzer.ts with emotional intelligence improvements
- * Critical fix for tone modulation and escalation prevention
+ * Enhanced with security, resilience, and error handling
  */
 
-import { aiSanitizer } from '@/utils/aiSanitizer'
+import { sanitizeUserMessage, sanitizeAIResponse, rateLimiter } from '@/utils/security'
+import { withRetry, requestCache, CircuitBreaker, handleApiError } from '@/utils/apiResilience'
 
 export interface ManipulationTactic {
   tactic: string
@@ -56,6 +57,7 @@ export interface ConversationContext {
 export class UnifiedAIService {
   private static instance: UnifiedAIService
   private readonly maxRetries = 3
+  private circuitBreaker = new CircuitBreaker(5, 60000) // 5 failures, 60s recovery
   
   // Enhanced fallback responses with emotional awareness
   private readonly fallbackResponses = {
@@ -91,24 +93,129 @@ export class UnifiedAIService {
   }
 
   /**
-   * ENHANCED: Analyze message with emotional intelligence and adaptive tone
+   * ENHANCED: Analyze message with security, resilience, and emotional intelligence
    */
   async analyzeMessage(
     content: string,
     context: ConversationContext
   ): Promise<AIAnalysisResult> {
-    try {
-      const emotionalContext = this.assessEmotionalContext(context.previousMessages)
-      const aiSensitivity = context.userPreferences?.aiSensitivity || 'neutral'
-      
-      const prompt = this.buildEmotionallyAwarePrompt(content, context, emotionalContext, aiSensitivity)
-      const rawResponse = await spark.llm(prompt, 'gpt-4o', true)
-      
-      return this.parseAIResponse(rawResponse, aiSensitivity)
-    } catch (error) {
-      console.error('AI Analysis failed:', error)
-      return this.getFallbackAnalysis(content, context.userPreferences?.aiSensitivity || 'neutral')
+    // Input validation and sanitization
+    const validation = this.validateInput(content, context)
+    if (!validation.isValid) {
+      throw new Error(validation.error || 'Invalid input')
     }
+
+    // Rate limiting check
+    const rateLimitKey = `ai-analysis-${context.messageAuthor}`
+    if (!rateLimiter.isAllowed(rateLimitKey, 10, 60000)) {
+      throw new Error('Rate limit exceeded. Please wait before trying again.')
+    }
+
+    try {
+      const sanitizedContent = sanitizeUserMessage(content)
+      const sanitizedContext = this.sanitizeContext(context)
+      
+      const emotionalContext = this.assessEmotionalContext(sanitizedContext.previousMessages)
+      const aiSensitivity = sanitizedContext.userPreferences?.aiSensitivity || 'neutral'
+      
+      const cacheKey = this.generateCacheKey(sanitizedContent, sanitizedContext)
+      
+      // Use circuit breaker and request caching
+      return await this.circuitBreaker.execute(async () => {
+        return await requestCache.get(cacheKey, async () => {
+          const result = await withRetry(async () => {
+            const prompt = this.buildEmotionallyAwarePrompt(
+              sanitizedContent, 
+              sanitizedContext, 
+              emotionalContext, 
+              aiSensitivity
+            )
+            
+            const rawResponse = await spark.llm(prompt, 'gpt-4o', true)
+            const sanitizedResponse = sanitizeAIResponse(rawResponse)
+            
+            return this.parseAIResponse(sanitizedResponse, aiSensitivity)
+          }, {
+            maxAttempts: 3,
+            baseDelay: 1000,
+            timeoutMs: 15000
+          })
+
+          if (result.success && result.data) {
+            return result.data
+          } else {
+            throw new Error(result.error || 'AI analysis failed')
+          }
+        }, 30000) // Cache for 30 seconds
+      })
+    } catch (error) {
+      const errorMessage = handleApiError(error, 'AI message analysis')
+      console.error('AI Analysis failed:', error)
+      
+      return this.getFallbackAnalysis(
+        content, 
+        context.userPreferences?.aiSensitivity || 'neutral',
+        errorMessage
+      )
+    }
+  }
+
+  /**
+   * Validates input before processing
+   */
+  private validateInput(content: string, context: ConversationContext): {
+    isValid: boolean
+    error?: string
+  } {
+    if (!content || typeof content !== 'string') {
+      return { isValid: false, error: 'Message content is required' }
+    }
+
+    if (content.trim().length === 0) {
+      return { isValid: false, error: 'Message cannot be empty' }
+    }
+
+    if (content.length > 5000) {
+      return { isValid: false, error: 'Message is too long (max 5000 characters)' }
+    }
+
+    if (!context || !context.messageAuthor) {
+      return { isValid: false, error: 'Message context is invalid' }
+    }
+
+    return { isValid: true }
+  }
+
+  /**
+   * Sanitizes conversation context
+   */
+  private sanitizeContext(context: ConversationContext): ConversationContext {
+    return {
+      ...context,
+      agreedIssue: sanitizeUserMessage(context.agreedIssue || ''),
+      playerOneStatement: sanitizeUserMessage(context.playerOneStatement || ''),
+      playerTwoStatement: sanitizeUserMessage(context.playerTwoStatement || ''),
+      currentMessage: sanitizeUserMessage(context.currentMessage || ''),
+      previousMessages: context.previousMessages?.map(msg => ({
+        ...msg,
+        content: sanitizeUserMessage(msg.content || '')
+      })) || []
+    }
+  }
+
+  /**
+   * Generates cache key for request deduplication
+   */
+  private generateCacheKey(content: string, context: ConversationContext): string {
+    const keyData = {
+      content: content.slice(0, 100), // First 100 chars
+      author: context.messageAuthor,
+      issue: context.agreedIssue.slice(0, 50),
+      sensitivity: context.userPreferences?.aiSensitivity,
+      recentMessages: context.previousMessages?.slice(-3).map(m => m.content.slice(0, 50))
+    }
+    
+    return `ai-analysis-${JSON.stringify(keyData).replace(/\s/g, '').slice(0, 200)}`
   }
 
   /**
@@ -237,7 +344,11 @@ Return JSON format:
   /**
    * ENHANCED: Fallback analysis with emotional awareness
    */
-  private getFallbackAnalysis(content: string, aiSensitivity: 'supportive' | 'neutral' | 'direct'): AIAnalysisResult {
+  private getFallbackAnalysis(
+    content: string, 
+    aiSensitivity: 'supportive' | 'neutral' | 'direct',
+    errorMessage?: string
+  ): AIAnalysisResult {
     const hasEscalationKeywords = /always|never|you're wrong|shut up|whatever/i.test(content)
     
     return {
@@ -254,7 +365,9 @@ Return JSON format:
         indicators: hasEscalationKeywords ? ['absolute statements', 'blame language'] : [],
         confidence: 0.6
       },
-      suggestion: this.fallbackResponses[aiSensitivity].genericIntervention,
+      suggestion: errorMessage 
+        ? `${errorMessage} Using basic analysis instead.`
+        : this.fallbackResponses[aiSensitivity].genericIntervention,
       aiSensitivity,
       deescalationNeeded: hasEscalationKeywords
     }
