@@ -370,8 +370,8 @@ describe('App Component', () => {
   })
 
   describe('Error Handling', () => {
-    it('shows validation error when session data is invalid', () => {
-      const { validateSessionData } = require('../utils/validation')
+    it('shows validation error when session data is invalid', async () => {
+      const { validateSessionData } = vi.mocked(await import('../utils/validation'))
       validateSessionData.mockReturnValue({ 
         isValid: false, 
         error: 'Invalid session data' 
@@ -385,7 +385,7 @@ describe('App Component', () => {
 
     it('provides reset option on validation error', async () => {
       const user = userEvent.setup()
-      const { validateSessionData } = require('../utils/validation')
+      const { validateSessionData } = vi.mocked(await import('../utils/validation'))
       validateSessionData.mockReturnValue({ 
         isValid: false, 
         error: 'Invalid session data' 
