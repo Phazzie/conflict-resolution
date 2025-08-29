@@ -72,7 +72,6 @@ function App() {
         const validation = validateSessionData(sessionData)
         if (!validation.isValid) {
           setValidationError(validation.error || 'Session validation failed')
-          console.warn('Session validation failed:', validation.error)
         }
       }
       setIsLoading(false)
@@ -155,7 +154,6 @@ function App() {
     try {
       // Validate session ID format
       if (!sessionId || !sessionId.match(/^session-\d+-[a-z0-9]{6}$/)) {
-        console.error('Invalid session ID format')
         return false
       }
 
@@ -177,10 +175,9 @@ function App() {
               { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
             ]
           })
-          console.log('Successfully joined existing session:', sessionId)
           return true
         } catch (parseError) {
-          console.error('Failed to parse existing session data:', parseError)
+          // Silently fail and create new session
         }
       }
 
@@ -197,10 +194,8 @@ function App() {
       localStorage.setItem(sessionKey, JSON.stringify(newSharedSession))
       updateSessionData(newSharedSession)
       
-      console.log('Created new shared session:', sessionId)
       return true
     } catch (error) {
-      console.error('Failed to join session:', error)
       return false
     }
   }
@@ -210,9 +205,9 @@ function App() {
     if (sessionData && sessionData.messages.length > 0) {
       try {
         const analytics = await analyticsService.generateSessionAnalytics(sessionData)
-        console.log('Generated session analytics:', analytics)
+        // Analytics generated successfully
       } catch (error) {
-        console.error('Failed to generate session analytics:', error)
+        // Silently fail - analytics are not critical
       }
     }
     updateSessionData({ phase: 'analytics' })
@@ -239,13 +234,11 @@ function App() {
       try {
         // Save to session history
         await sessionHistoryService.saveSession(sessionData, outcome)
-        console.log(`Session saved to history with outcome: ${outcome}`)
         
         // Learn from session outcome in ML model
         await machineLearningService.learnFromSessionOutcome(sessionData, outcome)
-        console.log(`ML model updated with session outcome: ${outcome}`)
       } catch (error) {
-        console.error('Failed to save session or update ML model:', error)
+        // Silently fail - these are enhancement features
       }
     }
   }, [sessionData])
@@ -548,7 +541,6 @@ function App() {
                 <div className="grid gap-6 lg:grid-cols-2">
                   <AIPersonalityTesting 
                     onComplete={(personality) => {
-                      console.log('User chose AI personality:', personality)
                       // Auto-continue after A/B test
                       setTimeout(() => updateSessionData({ phase: 'context-selection' }), 2000)
                     }}

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { saveSession, loadSession, clearSession } from '../sessionPersistence'
+import { saveSession, loadSession, clearSession } from '../../utils/sessionPersistence'
 import type { SessionData } from '../../types/session'
 
 // Mock the secureStorage
-vi.mock('../secureStorage', () => ({
+vi.mock('../../utils/secureStorage', () => ({
   secureStorage: {
     setItem: vi.fn(),
     getItem: vi.fn(),
@@ -13,12 +13,12 @@ vi.mock('../secureStorage', () => ({
 }))
 
 // Mock validation
-vi.mock('../validation', () => ({
+vi.mock('../../utils/validation', () => ({
   validateSessionData: vi.fn(() => ({ isValid: true })),
   sanitizeObject: vi.fn((data) => data)
 }))
 
-const mockSecureStorage = vi.mocked(await import('../secureStorage')).secureStorage
+const mockSecureStorage = vi.mocked(await import('../../utils/secureStorage')).secureStorage
 
 describe('sessionPersistence with secure storage', () => {
   let validSessionData: SessionData
@@ -88,8 +88,8 @@ describe('sessionPersistence with secure storage', () => {
     expect(result.sessionData).toBeUndefined()
   })
 
-  it('verifies data integrity with checksums', () => {
-    const { validateSessionData } = vi.mocked(await import('../validation'))
+  it('verifies data integrity with checksums', async () => {
+    const { validateSessionData } = vi.mocked(await import('../../utils/validation'))
     validateSessionData.mockReturnValue({ isValid: false, error: 'Invalid data' })
 
     const result = saveSession(validSessionData)
@@ -165,8 +165,8 @@ describe('sessionPersistence with secure storage', () => {
     expect(result.error).toContain('Session save failed')
   })
 
-  it('provides detailed error information', () => {
-    const { validateSessionData } = vi.mocked(await import('../validation'))
+  it('provides detailed error information', async () => {
+    const { validateSessionData } = vi.mocked(await import('../../utils/validation'))
     validateSessionData.mockReturnValue({ 
       isValid: false, 
       error: 'Missing required field: phase' 

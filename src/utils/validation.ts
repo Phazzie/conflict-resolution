@@ -5,7 +5,6 @@ import { SessionData, SessionPhase, ConflictContext } from '@/types/session'
  */
 export function sanitizeInput(input: string): string {
   if (typeof input !== 'string') {
-    console.warn('sanitizeInput received non-string input:', typeof input)
     return ''
   }
   

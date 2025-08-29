@@ -39,7 +39,6 @@ export class AIAnalysisService {
       
       return this.parseAIResponse(rawResponse)
     } catch (error) {
-      console.error('AI Analysis failed:', error)
       return this.getFallbackAnalysis(content)
     }
   }
@@ -126,7 +125,6 @@ MANIPULATION DETECTION FOCUS:
       // Validate JSON structure
       const validation = aiSanitizer.validateJSONResponse(sanitizedResponse)
       if (!validation.valid || !validation.parsed) {
-        console.error('AI response validation failed:', validation.error)
         return this.getFallbackAnalysis(rawResponse)
       }
       
@@ -148,7 +146,6 @@ MANIPULATION DETECTION FOCUS:
       // Final sanitization of the complete analysis object
       return aiSanitizer.sanitizeAIAnalysis(analysis)
     } catch (error) {
-      console.error('Failed to parse AI response:', error)
       return this.getFallbackAnalysis(rawResponse)
     }
   }
@@ -211,8 +208,6 @@ Provide a single sentence intervention in MixitFixit's signature tone: direct, s
       const sanitizedResponse = aiSanitizer.sanitizeResponse(response.trim().replace(/^["']|["']$/g, ''))
       return sanitizedResponse
     } catch (error) {
-      console.error('Intervention generation failed:', error)
-      
       // Fallback interventions based on patterns
       if (manipulation.some(m => m.type === 'gaslighting')) {
         return this.fallbackResponses.manipulationDetected
