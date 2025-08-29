@@ -476,7 +476,7 @@ class CouplesService {
       conflictResolution,
       intimacyAndConnection,
       sharedGoals,
-      individual Growth: individualGrowth,
+      individualGrowth,
       factors: {
         positive,
         concerning,

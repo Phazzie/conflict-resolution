@@ -111,7 +111,7 @@ export interface HealthMetrics {
   conflictResolution: number
   intimacyAndConnection: number
   sharedGoals: number
-  individual Growth: number
+  individualGrowth: number
   factors: {
     positive: string[]
     concerning: string[]

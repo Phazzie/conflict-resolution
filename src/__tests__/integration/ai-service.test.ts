@@ -51,7 +51,7 @@ describe('AI Service Integration', () => {
       const baseContext: ConversationContext = {
         agreedIssue: 'Household chores distribution',
         playerOneStatement: 'I do most of the work around here',
-        playerTwoStatement: 'I contribute in other ways that aren't visible',
+        playerTwoStatement: 'I contribute in other ways that are not visible',
         currentMessage: 'You never help with anything important',
         messageAuthor: 'player1',
         conflictContext: 'relationship',

@@ -111,16 +111,15 @@ export function useScreenReaderAnnouncements() {
     }, 3000)
   }
 
-  const AnnouncementDiv = () => (
-    <div
-      ref={announcementRef}
-      aria-live="polite"
-      aria-atomic="true"
-      className="sr-only"
-    />
-  )
-
-  return { announce, AnnouncementDiv }
+  return { 
+    announce, 
+    announcementRef,
+    announcementProps: {
+      'aria-live': 'polite' as const,
+      'aria-atomic': true,
+      className: 'sr-only'
+    }
+  }
 }
 
 /**

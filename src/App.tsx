@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
 import { CircleNotch, Lock } from '@phosphor-icons/react'
-import { SessionData } from './types/session'
 import { useUnifiedSession, migrateLegacySessionData } from './hooks/useUnifiedSession'
 import { analyticsService } from './services/analytics'
 import { sessionHistoryService } from './services/sessionHistory'
@@ -18,8 +17,6 @@ function App() {
   const {
     sessionData,
     playerRole,
-    isMultiplayer,
-    sessionId,
     hasActiveSession,
     updateSession,
     resetSession,
@@ -33,7 +30,7 @@ function App() {
   const [sessionWarnings, setSessionWarnings] = useState<string[]>([])
   
   // Accessibility hooks
-  const { announce, AnnouncementDiv } = useScreenReaderAnnouncements()
+  const { announce, announcementRef, announcementProps } = useScreenReaderAnnouncements()
   useSkipLinks()
   
   // Initialize session with validation and recovery
@@ -138,17 +135,6 @@ function App() {
     updateSession({ phase: 'ml-insights' })
   }, [updateSession])
 
-  const saveCurrentSession = useCallback(async (outcome: 'resolved' | 'stalemate' | 'abandoned') => {
-    if (sessionData && (sessionData.agreedIssue || sessionData.messages.length > 0)) {
-      try {
-        await sessionHistoryService.saveSession(sessionData, outcome)
-        await machineLearningService.learnFromSessionOutcome(sessionData, outcome)
-      } catch (error) {
-        // Silently fail - these are enhancement features
-      }
-    }
-  }, [sessionData])
-
   const exportAnalytics = useCallback((data: string) => {
     const blob = new Blob([data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -233,7 +219,7 @@ function App() {
   if (!sessionData || safeSessionData.phase === 'welcome') {
     return (
       <WelcomeScreen 
-        currentPlayer={playerRole}
+        currentPlayer={playerRole || 'player1'}
         onStartSession={startSession}
         onViewPatterns={() => updateSession({ phase: 'pattern-recognition' })}
         onViewCouples={() => updateSession({ phase: 'couples-dashboard' })}
@@ -246,11 +232,11 @@ function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-background">
-        <AnnouncementDiv />
+        <div ref={announcementRef} {...announcementProps} />
         <SessionHeader 
           sessionData={safeSessionData}
-          currentPlayer={playerRole}
-          hasActiveSession={hasActiveSession}
+          currentPlayer={playerRole || 'player1'}
+          hasActiveSession={hasActiveSession || false}
           sessionWarnings={sessionWarnings}
           onViewAnalytics={viewAnalytics}
           onViewPatterns={viewPatternRecognition}
@@ -263,7 +249,7 @@ function App() {
         <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8" role="main">
           <PhaseRenderer 
             sessionData={safeSessionData}
-            currentPlayer={playerRole}
+            currentPlayer={playerRole || 'player1'}
             updateSessionData={updateSession}
             onReset={handleResetSession}
             onExportAnalytics={exportAnalytics}
