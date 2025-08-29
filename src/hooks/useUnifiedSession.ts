@@ -60,6 +60,14 @@ export function useUnifiedSession() {
     enabled: false
   })
 
+  // Initialize multiplayer functionality first
+  const multiplayerSync = useMultiplayerSession({
+    sessionData,
+    onSessionUpdate: handleMultiplayerUpdate,
+    onNewMessage: handleMultiplayerMessage,
+    enabled: multiplayerState.enabled
+  })
+
   /**
    * Update session data with validation and multiplayer sync
    */
@@ -83,7 +91,7 @@ export function useUnifiedSession() {
       
       return newData
     })
-  }, [multiplayerState.enabled])
+  }, [multiplayerState.enabled, multiplayerSync])
 
   /**
    * Handle incoming multiplayer session updates
@@ -126,33 +134,7 @@ export function useUnifiedSession() {
     })
   }, [])
 
-  // Initialize multiplayer functionality
-  const multiplayerSync = useMultiplayerSession({
-    sessionData,
-    onSessionUpdate: handleMultiplayerUpdate,
-    onNewMessage: handleMultiplayerMessage,
-    enabled: multiplayerState.enabled
-  })
 
-  /**
-   * Update session data with validation
-   */
-  const updateSession = (updates: Partial<SessionData>) => {
-    setSessionData(current => {
-      if (!current) return current
-      
-      const newData = { ...current, ...updates }
-      const validation = validateSessionData(newData)
-      
-      if (!validation.isValid) {
-        console.error('Session update blocked:', validation.error)
-        // Don't update if it would corrupt the session
-        return current
-      }
-      
-      return newData
-    })
-  }
 
   /**
    * Reset everything to clean state
