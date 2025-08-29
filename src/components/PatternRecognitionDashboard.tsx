@@ -23,6 +23,7 @@ import {
   RelationshipPattern, 
   patternRecognitionService 
 } from '../services/patternRecognition'
+import DemoFeatureWrapper from './DemoFeatureWrapper'
 
 interface PatternRecognitionDashboardProps {
   currentSession?: SessionData
@@ -293,7 +294,13 @@ export default function PatternRecognitionDashboard({
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <DemoFeatureWrapper
+      featureName="Relationship Pattern Recognition"
+      type="demo"
+      description="This feature demonstrates AI-powered pattern detection for relationship conflicts. Currently shows sample patterns to illustrate the concept. Real implementation would analyze actual conversation data to identify genuine recurring patterns."
+      estimatedRelease="Q2 2024"
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -405,5 +412,6 @@ export default function PatternRecognitionDashboard({
         </TabsContent>
       </Tabs>
     </div>
+    </DemoFeatureWrapper>
   )
 }

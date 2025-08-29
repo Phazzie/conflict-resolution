@@ -17,6 +17,7 @@ import {
 } from '@phosphor-icons/react'
 import { analyticsService } from '@/services/analytics'
 import ContextSpecificInsights from './ContextSpecificInsights'
+import DemoFeatureWrapper from './DemoFeatureWrapper'
 
 interface AnalyticsDashboardProps {
   onExport?: (data: string) => void
@@ -105,7 +106,13 @@ export default function AnalyticsDashboard({ onExport }: AnalyticsDashboardProps
   } = dashboardData
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+    <DemoFeatureWrapper
+      featureName="Conflict Resolution Analytics"
+      type="simulation"
+      description="This analytics dashboard displays simulated data to demonstrate the intended functionality. Real analytics will track actual session data, user engagement patterns, and resolution success rates."
+      estimatedRelease="Q2 2024"
+    >
+      <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -369,6 +376,7 @@ export default function AnalyticsDashboard({ onExport }: AnalyticsDashboardProps
         </Card>
       </div>
     </div>
+    </DemoFeatureWrapper>
   )
 }
 

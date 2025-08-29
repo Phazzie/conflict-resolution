@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { Brain, TrendUp, Download, RotateCcw, ChartLine, Target, Lightbulb, Clock, CheckCircle, XCircle, MinusCircle, Settings, Zap, Activity } from '@phosphor-icons/react'
 import { machineLearningService } from '../services/machineLearning'
 import { toast } from 'sonner'
+import { RemovalCandidate } from './DemoFeatureWrapper'
 
 interface AccuracyTrend {
   date: number
@@ -176,7 +177,11 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <RemovalCandidate
+      featureName="Machine Learning Dashboard"
+      reason="This entire dashboard displays fake ML metrics and learning progress. All data is simulated and there is no actual machine learning happening. This is misleading to users and should be removed or replaced with a real implementation."
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1042,5 +1047,6 @@ export default function MLInsightsDashboard({ onClose, onExport }: MLInsightsDas
         </CardContent>
       </Card>
     </div>
+    </RemovalCandidate>
   )
 }

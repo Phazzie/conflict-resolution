@@ -322,7 +322,8 @@ Return JSON format:
    */
   private parseAIResponse(rawResponse: string, aiSensitivity: 'supportive' | 'neutral' | 'direct'): AIAnalysisResult {
     try {
-      const parsed = JSON.parse(aiSanitizer.sanitize(rawResponse))
+      const sanitizedResponse = sanitizeAIResponse(rawResponse)
+      const parsed = JSON.parse(sanitizedResponse)
       
       // Ensure all required fields are present
       return {

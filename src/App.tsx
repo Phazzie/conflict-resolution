@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
 import { CircleNotch, Lock } from '@phosphor-icons/react'
-import { SessionData, PlayerRole } from './types/session'
-import { validateSessionData } from './utils/validation'
-import { clearSession } from './utils/sessionPersistence'
+import { SessionData } from './types/session'
+import { useUnifiedSession, migrateLegacySessionData } from './hooks/useUnifiedSession'
 import { analyticsService } from './services/analytics'
 import { sessionHistoryService } from './services/sessionHistory'
 import { machineLearningService } from './services/mlServiceOptimized'
@@ -17,19 +15,18 @@ import SessionHeader from './components/SessionHeader'
 import PhaseRenderer from './components/PhaseRenderer'
 
 function App() {
-  const [sessionData, setSessionData] = useKV<SessionData>('mixitfixit-session', {
-    phase: 'welcome',
-    conflictContext: 'relationship',
-    agreedIssue: '',
-    playerOneSteelMan: '',
-    playerTwoSteelMan: '',
-    playerOneStatement: '',
-    playerTwoStatement: '',
-    messages: [],
-    proposedResolution: '',
-    finalResolution: '',
-    sessionStarted: Date.now()
-  })
+  const {
+    sessionData,
+    playerRole,
+    isMultiplayer,
+    sessionId,
+    hasActiveSession,
+    updateSession,
+    resetSession,
+    enableMultiplayer,
+    joinSession,
+    validateAndRecoverSession
+  } = useUnifiedSession()
 
   const [isLoading, setIsLoading] = useState(true)
   const [validationError, setValidationError] = useState<string>('')
@@ -43,15 +40,18 @@ function App() {
   useEffect(() => {
     const initializeSession = async () => {
       try {
-        if (sessionData) {
-          const validation = validateSessionData(sessionData)
-          if (!validation.isValid) {
-            setValidationError(validation.error || 'Session validation failed')
-            announce('Session validation failed. Please reset to continue.', 'assertive')
-          } else if (validation.warnings) {
-            setSessionWarnings(validation.warnings)
-            announce(`Session recovered with ${validation.warnings.length} warning${validation.warnings.length > 1 ? 's' : ''}`, 'polite')
-          }
+        // Clean up any legacy localStorage data
+        migrateLegacySessionData()
+
+        // Validate current session
+        const validation = validateAndRecoverSession()
+        
+        if (!validation.isValid) {
+          setValidationError(validation.error || 'Session validation failed')
+          announce('Session validation failed. Please reset to continue.', 'assertive')
+        } else if (validation.warnings) {
+          setSessionWarnings(validation.warnings)
+          announce(`Session recovered with ${validation.warnings.length} warning${validation.warnings.length > 1 ? 's' : ''}`, 'polite')
         }
       } catch (error) {
         const errorMsg = 'Failed to initialize session. This might be a browser storage issue.'
@@ -64,20 +64,9 @@ function App() {
     
     const timer = setTimeout(initializeSession, 100)
     return () => clearTimeout(timer)
-  }, [sessionData, announce])
+  }, [validateAndRecoverSession, announce])
 
-  const [currentPlayer] = useState<PlayerRole>(() => {
-    // Try to recover existing player role, or assign new one
-    const savedPlayer = localStorage.getItem('mixitfixit-player-role')
-    if (savedPlayer && (savedPlayer === 'player1' || savedPlayer === 'player2')) {
-      return savedPlayer as PlayerRole
-    }
-    const newPlayer = Math.random() > 0.5 ? 'player1' : 'player2'
-    localStorage.setItem('mixitfixit-player-role', newPlayer)
-    return newPlayer
-  })
-
-  // Ensure sessionData is always defined
+  // Ensure sessionData is always defined - should never be null with useUnifiedSession
   const safeSessionData = sessionData || {
     phase: 'welcome' as const,
     conflictContext: 'relationship' as const,
@@ -92,120 +81,35 @@ function App() {
     sessionStarted: Date.now()
   }
 
-  const updateSessionData = useCallback((updates: Partial<SessionData>) => {
-    setSessionData(current => {
-      const currentData = current || {
-        phase: 'welcome' as const,
-        conflictContext: 'relationship' as const,
-        agreedIssue: '',
-        playerOneSteelMan: '',
-        playerTwoSteelMan: '',
-        playerOneStatement: '',
-        playerTwoStatement: '',
-        messages: [],
-        proposedResolution: '',
-        finalResolution: '',
-        sessionStarted: Date.now()
-      }
-      return { ...currentData, ...updates } as SessionData
-    })
-  }, [setSessionData])
-
   const startSession = useCallback(() => {
-    updateSessionData({ 
+    updateSession({ 
       phase: 'ai-preferences',
       sessionStarted: Date.now() 
     })
-  }, [updateSessionData])
+  }, [updateSession])
 
-  const resetSession = useCallback(async () => {
+  const handleResetSession = useCallback(async () => {
     try {
       setIsLoading(true)
-      localStorage.removeItem('mixitfixit-player-role')
       setValidationError('')
       setSessionWarnings([])
       
-      clearSession()
-      
-      setSessionData({
-        phase: 'welcome',
-        conflictContext: 'relationship',
-        agreedIssue: '',
-        playerOneSteelMan: '',
-        playerTwoSteelMan: '',
-        playerOneStatement: '',
-        playerTwoStatement: '',
-        messages: [],
-        proposedResolution: '',
-        finalResolution: '',
-        sessionStarted: Date.now()
-      })
+      resetSession()
     } catch (error) {
       console.error('Failed to reset session:', error)
       setValidationError('Failed to reset session. Please refresh the page.')
     } finally {
       setIsLoading(false)
     }
-  }, [setSessionData])
+  }, [resetSession])
 
-  const enableMultiplayer = () => {
-    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
-    updateSessionData({
-      isMultiplayer: true,
-      sessionId,
-      participants: [{
-        playerId: currentPlayer,
-        isOnline: true,
-        lastSeen: Date.now(),
-        isTyping: false
-      }]
-    })
-  }
+  const handleEnableMultiplayer = useCallback(() => {
+    enableMultiplayer()
+  }, [enableMultiplayer])
 
-  const joinSession = async (sessionId: string): Promise<boolean> => {
-    try {
-      if (!sessionId || !sessionId.match(/^session-\d+-[a-z0-9]{6}$/)) {
-        return false
-      }
-
-      const sessionKey = `mixitfixit-shared-${sessionId}`
-      const existingSessionData = localStorage.getItem(sessionKey)
-      
-      if (existingSessionData) {
-        try {
-          const sharedSession = JSON.parse(existingSessionData)
-          updateSessionData({
-            ...sharedSession,
-            isMultiplayer: true,
-            sessionId,
-            participants: [
-              { playerId: 'player1', isOnline: true, lastSeen: Date.now(), isTyping: false },
-              { playerId: 'player2', isOnline: true, lastSeen: Date.now(), isTyping: false }
-            ]
-          })
-          return true
-        } catch (parseError) {
-          // Silently fail and create new session
-        }
-      }
-
-      const newSharedSession = {
-        ...safeSessionData,
-        isMultiplayer: true,
-        sessionId,
-        participants: [
-          { playerId: currentPlayer, isOnline: true, lastSeen: Date.now(), isTyping: false }
-        ]
-      }
-      
-      localStorage.setItem(sessionKey, JSON.stringify(newSharedSession))
-      updateSessionData(newSharedSession)
-      
-      return true
-    } catch (error) {
-      return false
-    }
-  }
+  const handleJoinSession = useCallback(async (sessionIdToJoin: string): Promise<boolean> => {
+    return joinSession(sessionIdToJoin)
+  }, [joinSession])
 
   const viewAnalytics = useCallback(async () => {
     if (sessionData && sessionData.messages.length > 0) {
@@ -215,24 +119,24 @@ function App() {
         // Silently fail - analytics are not critical
       }
     }
-    updateSessionData({ phase: 'analytics' })
-  }, [sessionData, updateSessionData])
+    updateSession({ phase: 'analytics' })
+  }, [sessionData, updateSession])
 
   const viewHistory = useCallback(() => {
-    updateSessionData({ phase: 'history' })
-  }, [updateSessionData])
+    updateSession({ phase: 'history' })
+  }, [updateSession])
 
   const viewCouplesDashboard = useCallback(() => {
-    updateSessionData({ phase: 'couples-dashboard' })
-  }, [updateSessionData])
+    updateSession({ phase: 'couples-dashboard' })
+  }, [updateSession])
 
   const viewPatternRecognition = useCallback(() => {
-    updateSessionData({ phase: 'pattern-recognition' })
-  }, [updateSessionData])
+    updateSession({ phase: 'pattern-recognition' })
+  }, [updateSession])
 
   const viewMLInsights = useCallback(() => {
-    updateSessionData({ phase: 'ml-insights' })
-  }, [updateSessionData])
+    updateSession({ phase: 'ml-insights' })
+  }, [updateSession])
 
   const saveCurrentSession = useCallback(async (outcome: 'resolved' | 'stalemate' | 'abandoned') => {
     if (sessionData && (sessionData.agreedIssue || sessionData.messages.length > 0)) {
@@ -256,8 +160,8 @@ function App() {
   }, [])
 
   // Check for session recovery
-  const hasActiveSession = sessionData && sessionData.phase !== 'welcome' && 
-    (sessionData.agreedIssue || sessionData.messages.length > 0)
+  // const hasActiveSession = sessionData && sessionData.phase !== 'welcome' && 
+  //   (sessionData.agreedIssue || sessionData.messages.length > 0)
 
   // Show loading screen while initializing
   if (isLoading) {
@@ -303,7 +207,7 @@ function App() {
               </div>
               
               <div className="flex flex-col gap-2">
-                <Button onClick={resetSession} variant="default" disabled={isLoading}>
+                <Button onClick={handleResetSession} variant="default" disabled={isLoading}>
                   {isLoading ? 'Starting Fresh...' : 'Start Fresh Session'}
                 </Button>
                 <Button 
@@ -329,11 +233,11 @@ function App() {
   if (!sessionData || safeSessionData.phase === 'welcome') {
     return (
       <WelcomeScreen 
-        currentPlayer={currentPlayer}
+        currentPlayer={playerRole}
         onStartSession={startSession}
-        onViewPatterns={() => updateSessionData({ phase: 'pattern-recognition' })}
-        onViewCouples={() => updateSessionData({ phase: 'couples-dashboard' })}
-        onViewMLInsights={() => updateSessionData({ phase: 'ml-insights' })}
+        onViewPatterns={() => updateSession({ phase: 'pattern-recognition' })}
+        onViewCouples={() => updateSession({ phase: 'couples-dashboard' })}
+        onViewMLInsights={() => updateSession({ phase: 'ml-insights' })}
       />
     )
   }
@@ -345,7 +249,7 @@ function App() {
         <AnnouncementDiv />
         <SessionHeader 
           sessionData={safeSessionData}
-          currentPlayer={currentPlayer}
+          currentPlayer={playerRole}
           hasActiveSession={hasActiveSession}
           sessionWarnings={sessionWarnings}
           onViewAnalytics={viewAnalytics}
@@ -353,18 +257,18 @@ function App() {
           onViewCouples={viewCouplesDashboard}
           onViewMLInsights={viewMLInsights}
           onViewHistory={viewHistory}
-          onReset={resetSession}
+          onReset={handleResetSession}
         />
 
         <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-8" role="main">
           <PhaseRenderer 
             sessionData={safeSessionData}
-            currentPlayer={currentPlayer}
-            updateSessionData={updateSessionData}
-            onReset={resetSession}
+            currentPlayer={playerRole}
+            updateSessionData={updateSession}
+            onReset={handleResetSession}
             onExportAnalytics={exportAnalytics}
-            enableMultiplayer={enableMultiplayer}
-            joinSession={joinSession}
+            enableMultiplayer={handleEnableMultiplayer}
+            joinSession={handleJoinSession}
           />
         </main>
         <Toaster />
