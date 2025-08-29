@@ -60,39 +60,6 @@ export function useUnifiedSession() {
     enabled: false
   })
 
-  // Initialize multiplayer functionality first
-  const multiplayerSync = useMultiplayerSession({
-    sessionData,
-    onSessionUpdate: handleMultiplayerUpdate,
-    onNewMessage: handleMultiplayerMessage,
-    enabled: multiplayerState.enabled
-  })
-
-  /**
-   * Update session data with validation and multiplayer sync
-   */
-  const updateSession = useCallback((updates: Partial<SessionData>) => {
-    setSessionData(current => {
-      if (!current) return current
-      
-      const newData = { ...current, ...updates }
-      const validation = validateSessionData(newData)
-      
-      if (!validation.isValid) {
-        console.error('Session update blocked:', validation.error)
-        // Don't update if it would corrupt the session
-        return current
-      }
-      
-      // Sync to multiplayer if enabled
-      if (multiplayerState.enabled && multiplayerSync.syncSessionData) {
-        multiplayerSync.syncSessionData(updates)
-      }
-      
-      return newData
-    })
-  }, [multiplayerState.enabled, multiplayerSync])
-
   /**
    * Handle incoming multiplayer session updates
    */
@@ -133,6 +100,39 @@ export function useUnifiedSession() {
       }
     })
   }, [])
+
+  // Initialize multiplayer functionality after callbacks are defined
+  const multiplayerSync = useMultiplayerSession({
+    sessionData,
+    onSessionUpdate: handleMultiplayerUpdate,
+    onNewMessage: handleMultiplayerMessage,
+    enabled: multiplayerState.enabled
+  })
+
+  /**
+   * Update session data with validation and multiplayer sync
+   */
+  const updateSession = useCallback((updates: Partial<SessionData>) => {
+    setSessionData(current => {
+      if (!current) return current
+      
+      const newData = { ...current, ...updates }
+      const validation = validateSessionData(newData)
+      
+      if (!validation.isValid) {
+        console.error('Session update blocked:', validation.error)
+        // Don't update if it would corrupt the session
+        return current
+      }
+      
+      // Sync to multiplayer if enabled
+      if (multiplayerState.enabled && multiplayerSync.syncSessionData) {
+        multiplayerSync.syncSessionData(updates)
+      }
+      
+      return newData
+    })
+  }, [multiplayerState.enabled, multiplayerSync])
 
 
 
