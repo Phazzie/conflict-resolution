@@ -35,7 +35,7 @@ export default defineConfig(({ command, mode }) => {
           // Code splitting for better caching
           manualChunks: {
             vendor: ['react', 'react-dom'],
-            ui: ['@radix-ui/react-dialog', '@radix-ui/react-button'],
+            ui: ['@radix-ui/react-dialog', '@radix-ui/react-slot'],
             charts: ['recharts', 'd3'],
             icons: ['@phosphor-icons/react'],
             ml: ['./src/services/mlServiceOptimized', './src/services/machineLearning']

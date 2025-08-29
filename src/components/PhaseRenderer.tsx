@@ -11,7 +11,6 @@ import StatementLocking from './StatementLocking'
 import DiscussionPhase from './DiscussionPhase'
 import ResolutionPhase from './ResolutionPhase'
 import SessionSummary from './SessionSummary'
-import SessionSharing from './SessionSharing'
 import AIPreferencesSettings from './AIPreferencesSettings'
 import AIPersonalityTesting from './AIPersonalityTesting'
 
@@ -42,8 +41,6 @@ interface PhaseRendererProps {
   updateSessionData: (updates: Partial<SessionData>) => void
   onReset: () => void
   onExportAnalytics: (data: string) => void
-  enableMultiplayer: () => void
-  joinSession: (sessionId: string) => Promise<boolean>
 }
 
 export default function PhaseRenderer({
@@ -51,9 +48,7 @@ export default function PhaseRenderer({
   currentPlayer,
   updateSessionData,
   onReset,
-  onExportAnalytics,
-  enableMultiplayer,
-  joinSession
+  onExportAnalytics
 }: PhaseRendererProps) {
   const headingRef = useFocusManagement(sessionData.phase)
   const { announce } = useScreenReaderAnnouncements()
@@ -194,18 +189,6 @@ export default function PhaseRenderer({
           currentPlayer={currentPlayer}
           updateSessionData={updateSessionData}
         />
-        
-        {/* Session Sharing Component */}
-        <div className="mt-8">
-          <SessionSharing
-            sessionId={sessionData.sessionId}
-            currentPlayer={currentPlayer}
-            participants={sessionData.participants || []}
-            isMultiplayer={sessionData.isMultiplayer || false}
-            onEnableMultiplayer={enableMultiplayer}
-            onJoinSession={joinSession}
-          />
-        </div>
       </PhaseErrorBoundary>
     )
   }

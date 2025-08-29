@@ -5,8 +5,6 @@ import { Toaster } from '@/components/ui/sonner'
 import { CircleNotch, Lock } from '@phosphor-icons/react'
 import { useUnifiedSession, migrateLegacySessionData } from './hooks/useUnifiedSession'
 import { analyticsService } from './services/analytics'
-import { sessionHistoryService } from './services/sessionHistory'
-import { machineLearningService } from './services/mlServiceOptimized'
 import { useSkipLinks, useScreenReaderAnnouncements } from './hooks/useAccessibility'
 import { safeAsync, safeEventHandler, requireData } from './utils/errorPrevention'
 import { performanceMonitor } from './utils/performanceMonitor'
@@ -83,7 +81,6 @@ function App() {
         // Log performance metrics in development
         if (appConfig.VITE_APP_ENVIRONMENT === 'development') {
           setTimeout(() => {
-            const metrics = performanceMonitor.getMetrics()
             const validation = performanceMonitor.validateDeploymentReadiness()
             
             if (!validation.isReady || validation.warnings.length > 0) {
@@ -123,7 +120,6 @@ function App() {
 
   const startSession = useCallback(safeEventHandler(() => {
     try {
-      const safeSessionData = requireData(sessionData, 'sessionData')
       updateSession({ 
         phase: 'ai-preferences',
         sessionStarted: Date.now() 
@@ -155,14 +151,6 @@ function App() {
       setIsLoading(false)
     }
   }, 'reset session'), [resetSession])
-
-  const handleEnableMultiplayer = useCallback(() => {
-    enableMultiplayer()
-  }, [enableMultiplayer])
-
-  const handleJoinSession = useCallback(async (sessionIdToJoin: string): Promise<boolean> => {
-    return joinSession(sessionIdToJoin)
-  }, [joinSession])
 
   const viewAnalytics = useCallback(async () => {
     if (sessionData && sessionData.messages.length > 0) {
@@ -292,7 +280,7 @@ function App() {
         <SessionHeader 
           sessionData={safeSessionData}
           currentPlayer={playerRole || 'player1'}
-          hasActiveSession={hasActiveSession || false}
+          hasActiveSession={hasActiveSession}
           sessionWarnings={sessionWarnings}
           onViewAnalytics={viewAnalytics}
           onViewPatterns={viewPatternRecognition}
@@ -309,8 +297,6 @@ function App() {
             updateSessionData={updateSession}
             onReset={handleResetSession}
             onExportAnalytics={exportAnalytics}
-            enableMultiplayer={handleEnableMultiplayer}
-            joinSession={handleJoinSession}
           />
         </main>
         <Toaster />
