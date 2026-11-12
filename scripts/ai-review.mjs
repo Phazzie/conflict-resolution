@@ -54,18 +54,23 @@ export function commentArgs(number, file) {
   return ["pr", "comment", String(number), "--body-file", file, "--edit-last", "--create-if-none"];
 }
 
+const COMMAND_TIMEOUT_MS = 30_000;
+
 function diffAgainstBase(env, run = execFileSync) {
   const base = env.GITHUB_BASE_REF || env.BASE_REF || "main";
   try {
-    run("git", ["fetch", "origin", base, "--depth", "50"], { stdio: "ignore" });
+    run("git", ["fetch", "origin", base, "--depth", "50"], {
+      stdio: "ignore",
+      timeout: COMMAND_TIMEOUT_MS,
+    });
   } catch {
-    // The checkout may already contain the base.
+    // The checkout may already contain the base, or the fetch timed out.
   }
-  try {
-    return run("git", ["diff", `origin/${base}...HEAD`], { encoding: "utf8", maxBuffer: 8_000_000 });
-  } catch {
-    return run("git", ["diff", "HEAD~1"], { encoding: "utf8", maxBuffer: 8_000_000 });
-  }
+  return run("git", ["diff", `origin/${base}...HEAD`], {
+    encoding: "utf8",
+    maxBuffer: 8_000_000,
+    timeout: COMMAND_TIMEOUT_MS,
+  });
 }
 
 async function askGrok(apiKey, diff, fetchImpl = fetch) {
@@ -96,7 +101,7 @@ function publishOnOrigin(number, body, run = execFileSync) {
   const file = run("mktemp", { encoding: "utf8" }).trim();
   try {
     writeFileSync(file, body);
-    run("origin", commentArgs(number, file), { stdio: "inherit" });
+    run("origin", commentArgs(number, file), { stdio: "inherit", timeout: COMMAND_TIMEOUT_MS });
   } finally {
     try {
       run("rm", ["-f", file]);
@@ -133,7 +138,14 @@ export async function main(env = process.env, deps = {}) {
     console.log(`AI review skipped: ${decision.reason}`);
     return;
   }
-  const diff = diffAgainstBase(env, run);
+  let diff;
+  try {
+    diff = diffAgainstBase(env, run);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : error;
+    console.log(`AI review skipped: could not read the pull request diff (${detail})`);
+    return;
+  }
   if (!diff.trim()) {
     console.log("AI review skipped: empty diff");
     return;

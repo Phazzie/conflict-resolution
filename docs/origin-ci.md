@@ -20,7 +20,7 @@ There is no `.github/workflows/` directory today. Nothing in that directory was 
 
 Node is 22, matching the current toolchain. npm's setup step caches from `package-lock.json`.
 
-`ai-review` checks out full history, repeats `npm ci`, and runs `node scripts/ai-review.mjs`. The job is the Depot form of the Street Royalty review job (`Phazzie/streetroyalty` `.depot/workflows/ci.yml`). This repo has no `npm run ci` or Playwright suite, so those Street Royalty steps are not copied.
+`ai-review` runs only for pull requests opened from this repository. Forks do not receive `XAI_API_KEY`. The job checks out the base revision under `.review-base` and runs that copy of `scripts/ai-review.mjs` when the file exists, so the pull request's copy of the script does not see the secret. The first pull request that adds the script falls back to the pull request copy, because `main` does not have it yet. The job does not run `npm ci`. The script uses only Node built-ins, and an install would execute the pull request's package scripts beside the Origin CLI. A newer push cancels the in-progress review for that pull request. A pull request that edits `.depot/workflows/ci.yml` can still change this job, which is the same workflow-file boundary as the Street Royalty pattern (`Phazzie/streetroyalty` `.depot/workflows/ci.yml`). This repo has no `npm run ci` or Playwright suite, so those Street Royalty steps are not copied.
 
 ## Review behavior
 

@@ -23,20 +23,30 @@ jobs:
       - run: node --test scripts/ai-review.test.mjs
 
   ai-review:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: ai-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: depot-ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .review-base
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
       - name: Grok review
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_BASE_REF: ${{ github.base_ref }}
-        run: node scripts/ai-review.mjs
+        run: |
+          if [ -f .review-base/scripts/ai-review.mjs ]; then
+            node .review-base/scripts/ai-review.mjs
+          else
+            node scripts/ai-review.mjs
+          fi

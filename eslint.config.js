@@ -31,6 +31,18 @@ export default tseslint.config(
     },
   },
   {
+    files: ["**/*.js"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: { ...globals.browser, ...globals.node },
+    },
+    rules: {
+      "no-unused-vars": "off",
+    },
+  },
+  {
     files: ["scripts/**/*.mjs"],
     extends: [js.configs.recommended],
     languageOptions: {

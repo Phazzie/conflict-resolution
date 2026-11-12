@@ -324,9 +324,9 @@ export const validateInput = (
   }
   
   // Check for excessive special characters (possible encoding attack)
-  // The control-character range is the check. `/` does not need escaping in a class.
+  // The control-character range is the check. A slash inside [] does not end the literal.
   // eslint-disable-next-line no-control-regex
-  const specialCharCount = (trimmed.match(/[<>&"'\x00-\x1f]/g) || []).length
+  const specialCharCount = (trimmed.match(/[<>&"'/\x00-\x1f]/g) || []).length
   if (specialCharCount > trimmed.length * 0.1) {
     warnings.push('High concentration of special characters detected')
   }
