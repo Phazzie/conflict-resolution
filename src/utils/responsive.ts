@@ -111,7 +111,7 @@ export function useMobileKeyboard() {
   useEffect(() => {
     if (!isMobile) return
 
-    let initialViewportHeight = window.visualViewport?.height || window.innerHeight
+    const initialViewportHeight = window.visualViewport?.height || window.innerHeight
     
     const handleViewportChange = () => {
       if (window.visualViewport) {

@@ -607,7 +607,7 @@ class SessionHistoryService {
     const sortedHistory = history.sort((a, b) => a.completedAt - b.completedAt)
     let currentStreak = 0
     let bestStreak = 0
-    let streakType: 'resolution' | 'completion' | 'satisfaction' = 'resolution'
+    const streakType: 'resolution' | 'completion' | 'satisfaction' = 'resolution'
 
     // Calculate resolution streak
     for (let i = sortedHistory.length - 1; i >= 0; i--) {
